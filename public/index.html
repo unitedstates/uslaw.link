@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <title>uslaw.link</title>
+
+        <meta name="description" content="Create permalinks to the law by pasting a citation.">
+
+        <meta name="twitter:creator" content="@JoshData" />
+
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" integrity="sha256-MfvZlkHCEqatNoGiOXveE8FIwMzZg4W85qfrfIFBfYc=" crossorigin="anonymous">
+        <style>
+            body {
+                padding-top: 50px;
+                padding-bottom: 20px;
+            }
+
+            #help {
+                margin-top: 1em;
+            }
+            #help p {
+                font-size: 14px;
+                margin-bottom: .5em;
+            }
+
+            .citation {
+                margin-bottom: 3em;
+            }
+
+            h2 {
+                margin: 0;
+                font-size: 32px;
+                font-weight: bold;
+            }
+
+            h3 {
+                font-size: 16px;
+                font-weight: bold;
+            }
+
+            .cite-type {
+                font-size: 24px;
+                color: #444;
+                margin-bottom: 1em;
+            }
+
+            .link {
+                font-family: monospace;
+                font-weight: bold;
+                margin-bottom: 2px;
+            }
+
+            .source span {
+                margin-right: 1em;
+            }
+
+            .other a {
+                margin-left: 1em;
+            }
+
+            p.note {
+                font-style: italic;
+            }
+
+        </style>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap-theme.min.css" integrity="sha256-bHQiqcFbnJb1Qhh61RY9cMh6kR0gTuQY6iFOBj1yj00=" crossorigin="anonymous">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css" integrity="sha256-VBrFgheoreGl4pKmWgZh3J23pJrhNlSUOBek+8Z2Gv0=" crossorigin="anonymous">
+
+        <!--[if lt IE 9]>
+            <script src="static/js/html5-3.6-respond-1.1.0.min.js"></script>
+        <![endif]-->
+    </head>
+    <body>
+
+    <!--[if lt IE 8]><p>Internet Explorer version 8 or any modern web browser is required to use this website, sorry.<![endif]-->
+    <!--[if gt IE 7]><!-->
+
+    <nav class="navbar navbar-default navbar-fixed-top">
+      <div class="container-fluid">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand" href="/">uslaw.link</a>
+        </div>
+      </div><!-- /.container-fluid -->
+    </nav>
+
+    <!-- Main jumbotron for a primary marketing message or call to action -->
+    <div class="jumbotron">
+      <div class="container">
+        <p style="margin: 0"><label for="citation" style="margin: 0; font-weight: normal;">Enter a citation:</label></p>
+        <form onsubmit="return citator()">
+            <input id="citation" type="text" class="form-control" value="40 U.S.C. § 11101(1)" style="margin: .5em 0 1em 0; font-size: 18px">
+        </form>
+        <p>
+            <a class="btn btn-primary" role="button" onclick="citator()">Get a Link &raquo;</a>
+            <a class="btn btn-default" role="button" onclick="$('#help').slideToggle()">Help</a>
+        </p>
+
+        <div id="help" style="display: none">
+            <p><b>Examples</b></p>
+            <div class="examples">
+                <p>40 U.S.C. § 11101(1)</p>
+                <p>PubL 110-84</p>
+                <p>118 Stat 3910</p>
+                <p>75 Fed. Reg. 28404</p>
+            </div>
+        </div>
+
+        <p style="margin-top: 2em; font-size: 16px;"><b>uslaw.link</b> is based on <a href="https://github.com/unitedstates/citation">unitedstates/citation</a>. For live linking of citations, try <a href="https://github.com/18F/linkify-citations">18F/linkify-citations</a>.</p>
+      </div>
+    </div>
+
+    <div class="container">
+    	<div id="results">
+        </div>
+
+          <hr>
+
+          <footer>
+            <p>Contact <a href="https://razor.occams.info">Joshua Tauberer</a> at <a href="mailto:hello@uslaw.link">hello@uslaw.link</a> with any questions.</p>
+          </footer>
+    </div> <!-- /container -->
+
+        <div id="ajax_loading_indicator" style="display: none; position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 100000; text-align: center; background-color: rgba(255,255,255,.75)">
+          <div style="margin: 20% auto">
+            <div><span class="fa fa-spinner fa-pulse"></span></div>
+            <div>Loading...</div>
+          </div>
+        </div>
+
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js" integrity="sha256-rsPUGdUPBXgalvIj4YKJrrUlmLXbOb6Cp7cdxn1qeUc=" crossorigin="anonymous"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js" integrity="sha256-Sk3nkD6mLTMOF0EOpNtsIry+s1CsaqQC1rVLTAy+0yc=" crossorigin="anonymous"></script>
+
+        <script>
+        function parse_qs(qs) {
+          // Parse something that looks like a query string. Based on
+          // http://stackoverflow.com/a/2880929/125992.
+          var match,
+            pl     = /\+/g,  // Regex for replacing addition symbol with a space
+            search = /([^&=]+)=?([^&]*)/g,
+            decode = function (s) { return decodeURIComponent(s.replace(pl, " ")); },
+            ret = {};
+          while (match = search.exec(qs))
+            ret[decode(match[1])] = decode(match[2]);
+          return ret;
+        }
+
+        $(function() {
+          // Make examples links - transform each example to a link that shows it.
+          $('#help .examples p').each(function() {
+            var ex = $(this).text();
+            $(this).text('');
+            $(this).append($('<a/>').text(ex).attr('href', '#').click(function() { citator(ex); return false }));
+          })
+
+          // Load state from fragment.
+          var state = parse_qs(window.location.hash.substring(1));
+          if (state.text) {
+            citator(state.text);
+          }
+        });
+
+        function citator(text) {
+            if (!text) {
+                text = $('#citation').val();
+            } else {
+                $('#citation').val(text);
+            }
+
+            ajax_with_indicator({
+                url: '/citation/find',
+                data: {
+                    text: text
+                },
+                success: function(res) {
+                    var citations = res.citations;
+                    if (citations.length == 0) {
+                        alert("The citation was not understood.");
+                        return;
+                    }
+
+                    // make this page a permalink
+                    window.location.hash = "#text=" + encodeURIComponent($('#citation').val());
+
+                    // display results
+                    var results = $('#results');
+                    results.text(''); // clear
+                    for (var i = 0; i < citations.length; i++) {
+                        var n = show_cite(citations[i]);
+                        results.append(n);
+                    }
+
+                    smooth_scroll_to($('#results'));
+                }
+            })
+            return false; // cancel form submit
+        }
+
+        var citation_type_names = {
+            usc: "United States Code",
+            law: "U.S. Slip Law",
+            stat: "U.S. Statutes at Large",
+            us_bill: "U.S. Bills and Resolutions",
+            fedreg: "Federal Register",
+            cfr: "Code of Federal Regulations"
+        };
+
+        var link_formats = ["pdf", "webpage"];
+
+        function show_cite(cite) {
+            var node = $("<div class='citation'><h2></h2><div class='cite-type'></div><div class='permalinks'></div><div class='parallel-cites'></div></div>");
+            node.find("h2").text(cite.citation || cite.match);
+            node.find("div.cite-type").text(citation_type_names[cite.type] || cite.type);
+            //node.append($("<div/>").text(JSON.stringify(cite)));
+
+            for (var key in cite) {
+                // the key might be 'usc' or another citator name, or some other metadata
+
+                if (cite[key].links) {
+                    // this is a citator with links
+
+                    if (cite[key].alternate) {
+                        // this is a parallel citation
+                        // I'm relying on the iteration of the citation object giving
+                        // related 
+                        var h3 = $("<h3>").text(cite[key].citation || citation_type_names[key] || key);
+                        node.find('.parallel-cites').append(h3);
+                    }
+
+                    for (var source_key in cite[key].links) {
+                        var link = $("<div class='permalink-source'>"
+                            +"<div class='link'><a/></div>"
+                            +"<div class='source'><span/><a/></div>"
+                            +"<div class='other hidden'><span>Other Formats:</span></div>"
+                            +"<p class='note'></p></div>");
+
+                        var source = cite[key].links[source_key]._source;
+                        link.find(".source a").text(source.name);
+                        link.find(".source a").attr('href', source.link);
+                        link.find("p.note").text(source.note);
+
+                        var first_format = true;
+                        for (var i = 0; i < link_formats.length; i++) {
+                            var f = link_formats[i];
+                            var url = cite[key].links[source_key][f];
+                            if (url) {
+                                if (first_format) {
+                                    link.find(".link a").text(url);
+                                    link.find(".link a").attr('href', url);
+                                    link.find(".source span").text(f.toUpperCase());
+                                    first_format = false;
+                                } else {
+                                    var ff = $("<a/>")
+                                    ff.text(f);
+                                    ff.attr('href', url);
+                                    link.find('.other').removeClass('hidden');
+                                    link.find('.other').append(ff);
+                                }
+                            }
+                        }
+
+                        if (!cite[key].alternate)
+                            node.find('.permalinks').append(link);
+                        else
+                            node.find('.parallel-cites').append(link);
+
+                    }
+                }
+            }
+            return node;
+        }
+        </script>
+
+        <script>
+        var ga_account_id = 'UA-XXXXX-X';
+        if (ga_account_id != 'UA-XXXXX-X') {
+            (function(b,o,i,l,e,r){b.GoogleAnalyticsObject=l;b[l]||(b[l]=
+            function(){(b[l].q=b[l].q||[]).push(arguments)});b[l].l=+new Date;
+            e=o.createElement(i);r=o.getElementsByTagName(i)[0];
+            e.src='//www.google-analytics.com/analytics.js';
+            r.parentNode.insertBefore(e,r)}(window,document,'script','ga'));
+            ga('create',ga_account_id);ga('send','pageview');
+        }
+
+        var ajax_num_executing_requests = 0;
+        function ajax_with_indicator(options) {
+          setTimeout("if (ajax_num_executing_requests > 0) $('#ajax_loading_indicator').fadeIn()", 100);
+          function hide_loading_indicator() {
+            ajax_num_executing_requests--;
+            if (ajax_num_executing_requests == 0)
+              $('#ajax_loading_indicator').stop(true).hide(); // stop() prevents an ongoing fade from causing the thing to be shown again after this call
+          }
+          var old_success = options.success;
+          var old_error = options.error;
+          options.success = function(data) {
+            hide_loading_indicator();
+            if (data.status == "error")
+              show_modal_error("Error", data.message);
+            else if (old_success)
+              old_success(data);
+          };
+          options.error = function(jqxhr) {
+            hide_loading_indicator();
+            if (!old_error) 
+              show_modal_error("Error", "Something went wrong, sorry.")
+            else
+              old_error(jqxhr.responseText, jqxhr);
+          };
+          ajax_num_executing_requests++;
+          $.ajax(options);
+          return false; // handy when called from onclick
+        }
+
+        function smooth_scroll_to(elem) {
+          $('html, body').animate({
+              scrollTop: Math.max(elem.offset().top-100, 0)
+          });
+        }
+
+        </script>
+    </body>
+</html>
