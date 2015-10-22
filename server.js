@@ -13,7 +13,7 @@ var route = function(req, res) {
   var text = decodeURIComponent(req.query["text"]);
 
   // Run the citation extractor.
-  var options = { };
+  var options = { links: true };
   var results = Citation.find(text, options);
 
   function http_with_redirect(url, callback, error, counter) {
@@ -38,7 +38,7 @@ var route = function(req, res) {
     return {
       alternate: true,
       id: type.id(citeobj),
-      citation: type.canonical_citation ? type.canonical_citation(citeobj) : null,
+      citation: type.canonical ? type.canonical(citeobj) : null,
       links: type.links(citeobj)
     }
   }
@@ -124,15 +124,15 @@ var us_bill_citator_stub = {
   id: function(cite) {
     return cite;
   },
-  canonical_citation: function(cite) {
+  canonical: function(cite) {
     return cite.bill_type.toUpperCase() + " " + cite.number + " (" + cite.congress + ")";
   },
   links: function(cite) {
     return {
       usgpo: {
-        _source: {
+        source: {
             name: "U.S. Government Publishing Office",
-            abbrev: "US GPO",
+            abbreviation: "US GPO",
             link: "http://gpo.gov/",
             authoritative: true
         },
@@ -140,13 +140,13 @@ var us_bill_citator_stub = {
       },
       
       govtrack: {
-        _source: {
+        source: {
             name: "GovTrack.us",
-            abbrev: "GovTrack.us",
+            abbreviation: "GovTrack.us",
             link: "https://www.govtrack.us/",
             authoritative: false
         },
-        webpage: "https://www.govtrack.us/congress/bills/" + cite.congress + "/" + cite.bill_type + cite.number
+        landing: "https://www.govtrack.us/congress/bills/" + cite.congress + "/" + cite.bill_type + cite.number
       }
     }
   }

@@ -212,7 +212,7 @@
             cfr: "Code of Federal Regulations"
         };
 
-        var link_formats = ["pdf", "webpage"];
+        var link_formats = { "pdf": "PDF", "landing": "Web Page", "html": "HTML" };
 
         function show_cite(cite) {
             var node = $("<div class='citation'><h2></h2><div class='cite-type'></div><div class='permalinks'></div><div class='parallel-cites'></div></div>");
@@ -241,24 +241,23 @@
                             +"<div class='other hidden'><span>Other Formats:</span></div>"
                             +"<p class='note'></p></div>");
 
-                        var source = cite[key].links[source_key]._source;
+                        var source = cite[key].links[source_key].source;
                         link.find(".source a").text(source.name);
                         link.find(".source a").attr('href', source.link);
                         link.find("p.note").text(source.note);
 
                         var first_format = true;
-                        for (var i = 0; i < link_formats.length; i++) {
-                            var f = link_formats[i];
+                        for (var f in link_formats) {
                             var url = cite[key].links[source_key][f];
                             if (url) {
                                 if (first_format) {
                                     link.find(".link a").text(url);
                                     link.find(".link a").attr('href', url);
-                                    link.find(".source span").text(f.toUpperCase());
+                                    link.find(".source span").text(link_formats[f]);
                                     first_format = false;
                                 } else {
                                     var ff = $("<a/>")
-                                    ff.text(f);
+                                    ff.text(link_formats[f]);
                                     ff.attr('href', url);
                                     link.find('.other').removeClass('hidden');
                                     link.find('.other').append(ff);
