@@ -18,10 +18,12 @@
                 padding-bottom: 20px;
             }
 
-            #help {
-                margin-top: 1em;
+            #examples {
             }
-            #help p {
+            #examples h4, #examples h5 {
+                font-weight: bold;
+            }
+            #examples p {
                 font-size: 14px;
                 margin-bottom: .5em;
             }
@@ -95,18 +97,40 @@
         <form onsubmit="return citator()">
             <input id="citation" type="text" class="form-control" value="40 U.S.C. § 11101(1)" style="margin: .5em 0 1em 0; font-size: 18px">
         </form>
-        <p>
+        <p style="margin-bottom: 1em">
             <a class="btn btn-primary" role="button" onclick="citator()">Get a Link &raquo;</a>
-            <a class="btn btn-default" role="button" onclick="$('#help').slideToggle()">Help</a>
+            <a class="btn btn-default" role="button" onclick="$('#examples').slideToggle()">Examples</a>
         </p>
 
-        <div id="help" style="display: none">
-            <p><b>Examples</b></p>
-            <div class="examples">
-                <p>40 U.S.C. § 11101(1)</p>
-                <p>PubL 110-84</p>
-                <p>118 Stat 3910</p>
-                <p>75 Fed. Reg. 28404</p>
+        <div id="examples" style="display: none">
+            <h4 style="margin: 0">Examples</h4>
+            <div class="row">
+                <div class="col-xs-4">
+                    <h5>Federal Statutory Law</h5>
+                    <p title="United States Code">40 U.S.C. § 11101(1)</p>
+                    <p title="United States Statutes at Large">118 Stat 3910</p>
+                    <p title="Public/Private Law Number / Slip Law">PubL 110-84</p>
+                </div>
+
+                <div class="col-xs-4">
+                    <h5>Federal Administrative Law</h5>
+                    <p title="Code of Federal Regulations">5 CFR §531.610(f)</p>
+                    <p title="Federal Register">75 Fed. Reg. 28404</p>
+                </div>
+
+                <div class="col-xs-4">
+                    <h5>Federal Case Law</h5>
+                    <p title="U.S. Reporter">410 U.S. 113</p>
+                    <p title="Federal Reporter">7 F.3d 324</p>
+                </div>
+
+                <div class="clearfix"> </div>
+
+                <div class="col-xs-4">
+                    <h5>Municipal Laws</h5>
+                    <p title="DC Code">DC Official Code 2-592</p>
+                    <p title="VA Code">VA Code § 30-178</p>
+                </div>
             </div>
         </div>
 
@@ -154,7 +178,7 @@
 
         $(function() {
           // Make examples links - transform each example to a link that shows it.
-          $('#help .examples p').each(function() {
+          $('#examples p').each(function() {
             var ex = $(this).text();
             $(this).text('');
             $(this).append($('<a/>').text(ex).attr('href', '#').click(function() { citator(ex); return false }));
@@ -208,13 +232,20 @@
             law: "U.S. Slip Law",
             stat: "U.S. Statutes at Large",
             us_bill: "U.S. Bills and Resolutions",
+
             fedreg: "Federal Register",
-            cfr: "Code of Federal Regulations"
+            cfr: "Code of Federal Regulations",
+
+            reporter: "U.S./Federal Reporter",
+            dc_code: "Code of the District of Columbia",
+            va_code: "Code of Virginia"
         };
 
         var link_formats = { "pdf": "PDF", "landing": "Web Page", "html": "HTML" };
 
         function show_cite(cite) {
+            $('#examples').slideUp();
+            
             var node = $("<div class='citation'><h2></h2><div class='cite-type'></div><div class='permalinks'></div><div class='parallel-cites'></div></div>");
             node.find("h2").text(cite.citation || cite.match);
             node.find("div.cite-type").text(citation_type_names[cite.type] || cite.type);
@@ -301,14 +332,14 @@
           options.success = function(data) {
             hide_loading_indicator();
             if (data.status == "error")
-              show_modal_error("Error", data.message);
+              alert(data.message);
             else if (old_success)
               old_success(data);
           };
           options.error = function(jqxhr) {
             hide_loading_indicator();
             if (!old_error) 
-              show_modal_error("Error", "Something went wrong, sorry.")
+              alert("Something went wrong, sorry.")
             else
               old_error(jqxhr.responseText, jqxhr);
           };
