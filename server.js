@@ -1,9 +1,24 @@
 #!/usr/bin/env node
 
+var fs = require('fs');
 var async = require('async');
 
 var Citation = require('../citation');
 var ParallelCitations = require("./parallel-citations.js");
+
+// our environment
+var env;
+try {
+	env = JSON.parse(fs.readFileSync('environment.json'));
+} catch (e) {
+	env = {
+		debug: true,
+		port: 3000,
+	}
+	console.log(e)
+	console.log("Create an environment file called environment.json that looks like this:");
+	console.log(JSON.stringify(env, 2, 2))
+}
 
 var route = function(req, res) {
   var text = decodeURIComponent(req.query["text"]);
@@ -35,19 +50,12 @@ var route = function(req, res) {
 var express = require('express');
 var app = express();
 
-// environment and port
-var env = process.env.NODE_ENV || 'development';
-var port = parseInt(process.argv[2], 10);
-if (isNaN(port)) port = 3000;
-
 // app middleware/settings
-app.enable('trust proxy')
-  .use(require('body-parser')({limit: "100mb"}))
-  .use(require('method-override')())
+app
   .use(express.static(__dirname + '/public'));
 
 // development vs production
-if (env == "development")
+if (env.debug)
   app.use(require('errorhandler')({dumpExceptions: true, showStack: true}))
 else
   app.use(require('errorhandler')())
@@ -58,7 +66,8 @@ app.route('/citation/find').get(route).post(route);
 
 
 // boot it up!
+var port = env.port || 3000;
 app.listen(port, function() {
-  console.log("Express server listening on port %s in %s mode", port, env);
+  console.log("Express server listening on port %s in %s mode", port, env.debug ? "debug" : "release");
 });
 

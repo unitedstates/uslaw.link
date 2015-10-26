@@ -23,9 +23,6 @@
     "http": "*",
     "xml-stream": "*",
     "express": "4.x",
-    "body-parser": "*",
-    "method-override": "*",
-    "errorhandler": "*",
 
     "async": "*"
   },
