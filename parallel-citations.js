@@ -1,7 +1,7 @@
 var async = require('async');
-var http = require('http');
 var request = require('request');
 var url = require('url');
+var Readable = require('stream').Readable
 var XmlStream = require('xml-stream');
 
 var Citation = require('../citation');
@@ -41,24 +41,6 @@ var fetchers = {
   }
 };
 
-function http_with_redirect(url, callback, error, counter) {
-  counter = counter || 0;
-  var request = http.get(url)
-    .on('response', function(response) {
-      if (response.headers.location) {
-        if (counter > 5)
-          error("Too many redirects");
-        else
-          http_with_redirect(response.headers.location, callback, error, counter+1);
-      } else {
-        callback(response);
-      }
-    })
-    .on('error', function(e) {
-      error(e);
-    });
-}
-
 function create_parallel_cite(type, citeobj) {
   return {
     alternate: true,
@@ -71,10 +53,13 @@ function create_parallel_cite(type, citeobj) {
 function get_from_usgpo_mods(mods_url, callback) {
   // Result Stat citation to equivalent Public Law citation.
   var cites = { };
-  http_with_redirect(mods_url,
-    function(response) {
-      response.setEncoding('utf8');
-      var xml = new XmlStream(response);
+  request.get(mods_url, function (error, response, body) {
+      // turn body back into a readable stream
+      var s = new Readable();
+      s.push(body)
+      s.push(null)
+
+      var xml = new XmlStream(s);
       xml.on('updateElement: mods > extension > bill', function(elem) {
         elem = elem.$;
         if (elem.priority == "primary") { // not sure
@@ -96,10 +81,6 @@ function get_from_usgpo_mods(mods_url, callback) {
       xml.on('end', function() {
         callback(cites);
       });
-    },
-    function(e) {
-      console.log("ERROR", e)
-      callback({});
     });
 }
 
@@ -115,7 +96,7 @@ function get_from_courtlistener_search(cite, env, callback) {
           pass: env.courtlistener.password,
           sendImmediately: true
         }
-      }, function (error, response, body){
+      }, function (error, response, body) {
         try {
           if (error || !body) throw "no response";
           var cases = JSON.parse(body).objects;

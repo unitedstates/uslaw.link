@@ -20,7 +20,6 @@
     "uslawdotlink": "./server.js"
   },
   "dependencies": {
-    "http": "*",
     "request": "*",
     "xml-stream": "*",
     "express": "4.x",
