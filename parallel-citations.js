@@ -1,16 +1,18 @@
 var async = require('async');
 var http = require('http');
+var request = require('request');
+var url = require('url');
 var XmlStream = require('xml-stream');
 
 var Citation = require('../citation');
 
-exports.get = function(cite, callback) {
+exports.get = function(cite, env, callback) {
   // Run the parallel citation fetchers over any available citation matches.
   var combined = { };
-  async.forEachOf(fetchers, function (value, key, callback) {
-    if (key in cite) {
+  async.forEachOf(fetchers, function (fetcher_function, cite_type, callback) {
+    if (cite_type in cite) {
       // Call the fetcher.
-      value(cite[key], function(new_cites) {
+      fetcher_function(cite[cite_type], cite, env, function(new_cites) {
         // It gives us back an object with new matched citations.
         // Merge them into the 'combined' object.
         for (var k in new_cites)
@@ -28,11 +30,14 @@ exports.get = function(cite, callback) {
 }
 
 var fetchers = {
-  stat: function(stat, callback) {
-    return get_from_usgpo_mods(stat.links.usgpo.mods, callback);
+  stat: function(stat, cite, env, callback) {
+    get_from_usgpo_mods(stat.links.usgpo.mods, callback);
   },
-  law: function(law, callback) {
-    return get_from_usgpo_mods(law.links.usgpo.mods, callback);
+  law: function(law, cite, env, callback) {
+    get_from_usgpo_mods(law.links.usgpo.mods, callback);
+  },
+  reporter: function(reporter, cite, env, callback) {
+    get_from_courtlistener_search(cite, env, callback);
   }
 };
 
@@ -96,6 +101,47 @@ function get_from_usgpo_mods(mods_url, callback) {
       console.log("ERROR", e)
       callback({});
     });
+}
+
+function get_from_courtlistener_search(cite, env, callback) {
+  var link = cite.reporter.links.courtlistener;
+  if (link && env.courtlistener) {
+    // This case is believed to be available at CourtListener. Do a search
+    // for the citation at CL and use the first result.
+    request.get('https://www.courtlistener.com/api/rest/v2/search/?' + url.parse(link.landing).query,
+      {
+        auth: {
+          user: env.courtlistener.username,
+          pass: env.courtlistener.password,
+          sendImmediately: true
+        }
+      }, function (error, response, body){
+        try {
+          if (error || !body) throw "no response";
+          var cases = JSON.parse(body).objects;
+          if (cases.length == 0) throw "no results";
+
+          var item = cases[0];
+
+          // Update the CourtListener link in-place.
+          link.landing = "https://www.courtlistener.com" + item.absolute_url;
+
+          // Update the citations' canonical citation with the citation provided by CL.
+          cite.citation = item.citation;
+
+          // Update the citation's authority & document_title (neither field is used anywhere else but here).
+          cite.authority = item.court;
+          cite.document_title = item.case_name;
+
+          // Call the callback. We don't add any new links, so we just return an empty object.
+          callback({});
+        } catch (e) {
+          callback({})
+        }
+      })
+  } else {
+    callback({})
+  }
 }
 
 var us_bill_citator_stub = {

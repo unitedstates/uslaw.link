@@ -14,10 +14,12 @@ try {
 	env = {
 		debug: true,
 		port: 3000,
+		courtlistener: { username: 'myname', password: 'password' }
 	}
 	console.log(e)
 	console.log("Create an environment file called environment.json that looks like this:");
 	console.log(JSON.stringify(env, 2, 2))
+	delete env['courtlistener']; // was for demonstration only
 }
 
 var route = function(req, res) {
@@ -29,7 +31,7 @@ var route = function(req, res) {
 
   // Fetch parallel citations for each matched citation.
   async.forEach(results.citations, function (citation, callback) {
-    ParallelCitations.get(citation, function(new_citations) {
+    ParallelCitations.get(citation, env, function(new_citations) {
       // merge
       for (var k in new_citations) {
         if (!(k in citation))

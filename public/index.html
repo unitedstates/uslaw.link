@@ -43,7 +43,7 @@
                 font-weight: bold;
             }
 
-            .cite-type {
+            .cite-authority {
                 font-size: 24px;
                 color: #444;
                 margin-bottom: 1em;
@@ -241,14 +241,18 @@
             va_code: "Code of Virginia"
         };
 
-        var link_formats = { "pdf": "PDF", "landing": "Web Page", "html": "HTML" };
+        var link_formats = { "pdf": "PDF", "landing": "Web Page", "html": "HTML", "mods": "MODS" };
 
         function show_cite(cite) {
             $('#examples').slideUp();
             
-            var node = $("<div class='citation'><h2></h2><div class='cite-type'></div><div class='permalinks'></div><div class='parallel-cites'></div></div>");
-            node.find("h2").text(cite.citation || cite.match);
-            node.find("div.cite-type").text(citation_type_names[cite.type] || cite.type);
+            var title = cite.citation || cite.match;
+            if (cite.document_title)
+                title = cite.document_title + " (" + title + ")";
+
+            var node = $("<div class='citation'><h2></h2><div class='cite-authority'></div><div class='permalinks'></div><div class='parallel-cites'></div></div>");
+            node.find("h2").text(title);
+            node.find("div.cite-authority").text(cite.authority || citation_type_names[cite.type] || cite.type);
             //node.append($("<div/>").text(JSON.stringify(cite)));
 
             for (var key in cite) {
