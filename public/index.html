@@ -242,7 +242,7 @@
             return false; // cancel form submit
         }
 
-        var citation_type_names = {
+        var citation_authority_names = {
             usc: "United States Code",
             law: "U.S. Slip Law",
             stat: "U.S. Statutes at Large",
@@ -251,10 +251,15 @@
             fedreg: "Federal Register",
             cfr: "Code of Federal Regulations",
 
-            reporter: "U.S./Federal Reporter",
             dc_code: "Code of the District of Columbia",
             va_code: "Code of Virginia"
         };
+
+        var citation_authority_functions = {
+            reporter: function(cite) {
+                return cite.reporter.reporter + " Reporter";
+            }
+        }
 
         var link_formats = { "pdf": "PDF", "landing": "Web Page", "html": "HTML", "mods": "MODS" };
 
@@ -264,7 +269,11 @@
             var title = cite.citation || cite.match;
             node.append($(!is_parallel ? '<h2/>' : '<h3/>').text(title));
 
-            node.append($("<div class='cite-authority'/>").text(cite.authority || citation_type_names[cite.type] || cite.type));
+            node.append($("<div class='cite-authority'/>").text(
+                   cite.authority
+                || citation_authority_names[cite.type]
+                || (citation_authority_functions[cite.type] && citation_authority_functions[cite.type](cite))
+                || cite.type));
 
             node.append($("<div class='permalinks'/>"))
             node.append($("<div class='parallel-cites hidden'/>"))
