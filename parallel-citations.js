@@ -33,10 +33,16 @@ exports.get = function(cite, env, callback) {
 
 var fetchers = {
   stat: function(stat, cite, env, callback) {
-    get_from_usgpo_mods(cite, stat.links.usgpo.mods, callback);
+    if (stat.links.usgpo)
+      get_from_usgpo_mods(cite, stat.links.usgpo.mods, callback);
+    else
+      callback([])
   },
   law: function(law, cite, env, callback) {
-    get_from_usgpo_mods(cite, law.links.usgpo.mods, callback);
+    if (law.links.usgpo)
+      get_from_usgpo_mods(cite, law.links.usgpo.mods, callback);
+    else
+      callback([])
   },
   usc: function(usc, cite, env, callback) {
     // Because of the ambiguity of dashes being within section numbers
