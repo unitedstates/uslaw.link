@@ -8,33 +8,35 @@ var Citation = require('../citation');
 
 exports.get = function(cite, env, callback) {
   // Run the parallel citation fetchers over any available citation matches.
-  var combined = { };
+  // Each fetcher can either:
+  //   1) Adorn 'cite' with new link sources.
+  //   2) Call callback() passing an array of other citations to display.
+  var new_citations = [ ];
   async.forEachOf(fetchers, function (fetcher_function, cite_type, callback) {
-    if (cite_type in cite) {
-      // Call the fetcher.
-      fetcher_function(cite[cite_type], cite, env, function(new_cites) {
-        // It gives us back an object with new matched citations.
-        // Merge them into the 'combined' object.
-        for (var k in new_cites)
-          combined[k] = new_cites[k];
-        callback(); // signal OK
-      })
-    } else {
-      // citation of this type not present
+    if (!(cite_type in cite)) {
+      // citation of this type not present in the citation
       callback();
+      return;
     }
+
+    // Call the fetcher function.
+    fetcher_function(cite[cite_type], cite, env, function(new_cites) {
+      // It gives us back an array of new citations. Accumulate them.
+      new_cites.forEach(function(item) { new_citations.push(item); })
+      callback(); // signal OK
+    })
   }, function(err) {
     // all fetchers have run
-    callback(combined);
+    callback(new_citations);
   });
 }
 
 var fetchers = {
   stat: function(stat, cite, env, callback) {
-    get_from_usgpo_mods(stat.links.usgpo.mods, callback);
+    get_from_usgpo_mods(cite, stat.links.usgpo.mods, callback);
   },
   law: function(law, cite, env, callback) {
-    get_from_usgpo_mods(law.links.usgpo.mods, callback);
+    get_from_usgpo_mods(cite, law.links.usgpo.mods, callback);
   },
   reporter: function(reporter, cite, env, callback) {
     get_from_courtlistener_search(cite, env, callback);
@@ -42,17 +44,23 @@ var fetchers = {
 };
 
 function create_parallel_cite(type, citeobj) {
-  return {
-    alternate: true,
-    id: type.id(citeobj),
-    citation: type.canonical ? type.canonical(citeobj) : null,
-    links: type.links(citeobj)
-  }
+  var citator = Citation.types[type];
+  var ret = {
+    type: type,
+    authority: citator.authority ? citator.authority(citeobj) : null, // our own extension
+    citation: citator.canonical ? citator.canonical(citeobj) : null,
+  };
+  ret[type] = {
+    id: citator.id(citeobj),
+    links: citator.links(citeobj)
+  };
+  return ret;
 }
 
-function get_from_usgpo_mods(mods_url, callback) {
+function get_from_usgpo_mods(cite, mods_url, callback) {
   // Result Stat citation to equivalent Public Law citation.
-  var cites = { };
+  var cites = [ ];
+  var seen_cites = { };
   request.get(mods_url, function (error, response, body) {
       // turn body back into a readable stream
       var s = new Readable();
@@ -62,23 +70,43 @@ function get_from_usgpo_mods(mods_url, callback) {
       var xml = new XmlStream(s);
       xml.on('updateElement: mods > extension > bill', function(elem) {
         elem = elem.$;
-        if (elem.priority == "primary") { // not sure
-          cites.us_bill = create_parallel_cite(us_bill_citator_stub, {
+        if (elem.priority == "primary") { // not sure what "primary" means, but I hope it means the source bill and not a bill that happens to be mentioned in the statute
+          var c = create_parallel_cite('us_bill', {
             congress: elem.congress,
             bill_type: elem.type.toLowerCase(),
             number: elem.number
           });
+          if (c.us_bill.id in seen_cites) return; // MODS has duplicative info
+          cites.push(c);
+          seen_cites[c.us_bill.id] = c;
         }
       }); 
       xml.on('updateElement: mods > extension > law', function(elem) {
         elem = elem.$;
-        cites.law = create_parallel_cite(Citation.types.law, {
+        var c = create_parallel_cite('law', {
           congress: elem.congress,
           type: elem.isPrivate=='true' ? "private" : "public",
           number: elem.number
         });
+        if (c.law.id in seen_cites) return; // MODS has duplicative info
+        cites.push(c);
+        seen_cites[c.law.id] = c;
       }); 
       xml.on('end', function() {
+        // Remove links to GovTrack's us_law search page if we have a link directly to a bill.
+        var has_govtrack_bill_link = false;
+        for (var i = 0; i < cites.length; i++)
+          if (cites[i].type == "us_bill")
+            has_govtrack_bill_link = true;
+        if (has_govtrack_bill_link) {
+          if (cite.type == "law")
+            delete cite.law.links.govtrack;
+          for (var i = 0; i < cites.length; i++)
+            if (cites[i].type == "law")
+              delete cites[i].law.links.govtrack;
+        }
+
+        // Callback.
         callback(cites);
       });
     });
@@ -102,32 +130,34 @@ function get_from_courtlistener_search(cite, env, callback) {
           var cases = JSON.parse(body).objects;
           if (cases.length == 0) throw "no results";
 
-          var item = cases[0];
+          // Delete the original link. If we show cases, there's no need to show
+          // a link to search results.
+          delete cite.reporter.links.courtlistener;
 
-          // Update the CourtListener link in-place.
-          link.landing = "https://www.courtlistener.com" + item.absolute_url;
-
-          // Update the citations' canonical citation with the citation provided by CL.
-          cite.citation = item.citation;
-
-          // Update the citation's authority & document_title (neither field is used anywhere else but here).
-          cite.authority = item.court;
-          cite.document_title = item.case_name;
+          var new_citations = [];
+          cases.forEach(function(item) {
+            new_citations.push(create_parallel_cite('courtlistener_case', {
+              citation: item.case_name,
+              court: item.court,
+              link: "https://www.courtlistener.com" + item.absolute_url
+            }));
+          })
 
           // Call the callback. We don't add any new links, so we just return an empty object.
-          callback({});
+          callback(new_citations);
         } catch (e) {
-          callback({})
+          callback([])
         }
       })
   } else {
-    callback({})
+    callback([])
   }
 }
 
-var us_bill_citator_stub = {
+// us_bill citator stub
+Citation.types.us_bill = {
   id: function(cite) {
-    return cite;
+    return "us_bill/" + cite.congress + "/" + cite.bill_type + "/" + cite.number;
   },
   canonical: function(cite) {
     return cite.bill_type.toUpperCase() + " " + cite.number + " (" + cite.congress + ")";
@@ -152,6 +182,33 @@ var us_bill_citator_stub = {
             authoritative: false
         },
         landing: "https://www.govtrack.us/congress/bills/" + cite.congress + "/" + cite.bill_type + cite.number
+      }
+    }
+  }
+};
+
+// courtlistener case citator stub
+Citation.types.courtlistener_case = {
+  id: function(cite) {
+    return "cl/" + cite.citation;
+  },
+  canonical: function(cite) {
+    return cite.citation;
+  },
+  authority: function(cite) {
+    return cite.court;
+  },
+  links: function(cite) {
+    return {
+      courtlistener: {
+        source: {
+            name: "Court Listener",
+            abbreviation: "CL",
+            link: "https://www.courtlistener.com",
+            authoritative: false
+        },
+
+        landing: cite.link
       }
     }
   }

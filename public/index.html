@@ -29,8 +29,12 @@
             }
 
             .citation {
-                margin-bottom: 3em;
+                margin-bottom: 1em;
             }
+                .citation.not-first {
+                    border-top: 1px solid #ddd;
+                    padding-top: 1em;
+                }
 
             h2 {
                 margin: 0;
@@ -39,6 +43,7 @@
             }
 
             h3 {
+                margin: 0;
                 font-size: 16px;
                 font-weight: bold;
             }
@@ -46,8 +51,12 @@
             .cite-authority {
                 font-size: 24px;
                 color: #444;
-                margin-bottom: 1em;
+                margin-bottom: .75em;
             }
+                .parallel-cites .cite-authority {
+                    font-size: 16px;
+                    margin-bottom: .5em;
+                }
 
             .link {
                 font-family: monospace;
@@ -65,6 +74,10 @@
 
             p.note {
                 font-style: italic;
+            }
+
+            .parallel-cites {
+                margin-top: 1.75em;
             }
 
         </style>
@@ -198,13 +211,14 @@
                 $('#citation').val(text);
             }
 
+            $('#examples').slideUp();
+            
             ajax_with_indicator({
                 url: '/citation/find',
                 data: {
                     text: text
                 },
-                success: function(res) {
-                    var citations = res.citations;
+                success: function(citations) {
                     if (citations.length == 0) {
                         alert("The citation was not understood.");
                         return;
@@ -219,6 +233,7 @@
                     for (var i = 0; i < citations.length; i++) {
                         var n = show_cite(citations[i]);
                         results.append(n);
+                        if (i > 0) n.addClass('not-first');
                     }
 
                     smooth_scroll_to($('#results'));
@@ -243,31 +258,23 @@
 
         var link_formats = { "pdf": "PDF", "landing": "Web Page", "html": "HTML", "mods": "MODS" };
 
-        function show_cite(cite) {
-            $('#examples').slideUp();
-            
-            var title = cite.citation || cite.match;
-            if (cite.document_title)
-                title = cite.document_title + " (" + title + ")";
+        function show_cite(cite, is_parallel) {
+            var node = $("<div class='citation'></div>");
 
-            var node = $("<div class='citation'><h2></h2><div class='cite-authority'></div><div class='permalinks'></div><div class='parallel-cites'></div></div>");
-            node.find("h2").text(title);
-            node.find("div.cite-authority").text(cite.authority || citation_type_names[cite.type] || cite.type);
+            var title = cite.citation || cite.match;
+            node.append($(!is_parallel ? '<h2/>' : '<h3/>').text(title));
+
+            node.append($("<div class='cite-authority'/>").text(cite.authority || citation_type_names[cite.type] || cite.type));
+
+            node.append($("<div class='permalinks'/>"))
+            node.append($("<div class='parallel-cites hidden'/>"))
             //node.append($("<div/>").text(JSON.stringify(cite)));
 
             for (var key in cite) {
                 // the key might be 'usc' or another citator name, or some other metadata
 
-                if (cite[key].links) {
+                if (cite[key] && cite[key].links) {
                     // this is a citator with links
-
-                    if (cite[key].alternate) {
-                        // this is a parallel citation
-                        // I'm relying on the iteration of the citation object giving
-                        // related 
-                        var h3 = $("<h3>").text(cite[key].citation || citation_type_names[key] || key);
-                        node.find('.parallel-cites').append(h3);
-                    }
 
                     for (var source_key in cite[key].links) {
                         var link = $("<div class='permalink-source'>"
@@ -300,14 +307,19 @@
                             }
                         }
 
-                        if (!cite[key].alternate)
-                            node.find('.permalinks').append(link);
-                        else
-                            node.find('.parallel-cites').append(link);
-
+                        node.find('.permalinks').append(link);
                     }
                 }
             }
+
+            // Recursively show parallel citations.
+            for (var i = 0; i < (cite.parallel_citations || []).length; i++) {
+                var n = show_cite(cite.parallel_citations[i], true);
+                node.find('>.parallel-cites').removeClass('hidden');
+                node.find('>.parallel-cites').append(n);
+                if (i > 0) n.addClass('not-first');
+            }
+
             return node;
         }
         </script>

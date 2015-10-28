@@ -27,18 +27,16 @@ var route = function(req, res) {
 
   // Run the citation extractor.
   var options = { links: true };
-  var results = Citation.find(text, options);
+  var results = Citation.find(text, options).citations;
 
-  // Fetch parallel citations for each matched citation.
-  async.forEach(results.citations, function (citation, callback) {
+  // Fetch parallel citations for each matched citation (the input may
+  // yield multiple distinct matched citations, as an array). Adorn each
+  // citation with a list of parallel citations.
+  async.each(results, function (citation, callback) {
+  	// Get the parallel citations for a citation.
     ParallelCitations.get(citation, env, function(new_citations) {
-      // merge
-      for (var k in new_citations) {
-        if (!(k in citation))
-          citation[k] = new_citations[k];
-      }
-      callback(); // done here
-
+    	citation.parallel_citations = (new_citations || []);
+      	callback();
     })
   }, function (err) {
     // Send response.
