@@ -230,13 +230,19 @@
                     // display results
                     var results = $('#results');
                     results.text(''); // clear
+                    var first = true;
                     for (var i = 0; i < citations.length; i++) {
                         var n = show_cite(citations[i]);
+                        if (n == null) continue;
                         results.append(n);
-                        if (i > 0) n.addClass('not-first');
+                        if (!first) n.addClass('not-first');
+                        first = false;
                     }
 
-                    smooth_scroll_to($('#results'));
+                    if (first)
+                        alert("We don't have any links to that citation.");
+                    else
+                        smooth_scroll_to($('#results'));
                 }
             })
             return false; // cancel form submit
@@ -279,6 +285,7 @@
             node.append($("<div class='parallel-cites hidden'/>"))
             //node.append($("<div/>").text(JSON.stringify(cite)));
 
+            var has_links = false;
             for (var key in cite) {
                 // the key might be 'usc' or another citator name, or some other metadata
 
@@ -286,6 +293,8 @@
                     // this is a citator with links
 
                     for (var source_key in cite[key].links) {
+                        has_links = true;
+
                         var link = $("<div class='permalink-source'>"
                             +"<div class='link'><a/></div>"
                             +"<div class='source'><span/><a/></div>"
@@ -322,12 +331,19 @@
             }
 
             // Recursively show parallel citations.
+            var first = true;
             for (var i = 0; i < (cite.parallel_citations || []).length; i++) {
                 var n = show_cite(cite.parallel_citations[i], true);
+                if (!n) continue;
                 node.find('>.parallel-cites').removeClass('hidden');
                 node.find('>.parallel-cites').append(n);
-                if (i > 0) n.addClass('not-first');
+                if (!first) n.addClass('not-first');
+                first = false;
+                has_links = true;
             }
+
+            if (!has_links)
+                return null;
 
             return node;
         }

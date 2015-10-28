@@ -38,6 +38,21 @@ var fetchers = {
   law: function(law, cite, env, callback) {
     get_from_usgpo_mods(cite, law.links.usgpo.mods, callback);
   },
+  usc: function(usc, cite, env, callback) {
+    // Because of the ambiguity of dashes being within section numbers
+    // or delineating ranges, we can test of the citation actually exists
+    // now and delete links that don't resolve.
+    if (usc.links && usc.links.usgpo && usc.links.usgpo.pdf) {
+      request.get(usc.links.usgpo.pdf, function (error, response, body) {
+        // When the link fails, GPO gives a status 200 but an HTML page with an error.
+        if (response.headers['content-type'] != "application/pdf")
+          delete cite.usc.links;
+        callback([]);
+      });
+    } else {
+      callback([])
+    }
+  },
   reporter: function(reporter, cite, env, callback) {
     get_from_courtlistener_search(cite, env, callback);
   }
