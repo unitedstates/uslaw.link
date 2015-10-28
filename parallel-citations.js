@@ -124,6 +124,11 @@ function get_from_usgpo_mods(cite, mods_url, callback) {
         // Callback.
         callback(cites);
       });
+      xml.on('error', function(e) {
+        // ignore errors ('end' is still called)
+        console.log(e);
+      });
+
     });
 }
 
