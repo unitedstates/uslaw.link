@@ -18,6 +18,16 @@
                 padding-bottom: 20px;
             }
 
+            a {
+                color: #13F;
+            }
+
+            #jumbotron {
+                background-color: #EEE;
+                padding: 1.5em 0;
+                margin-bottom: 32px;
+            }
+
             #examples {
             }
             #examples h4, #examples h5 {
@@ -34,6 +44,12 @@
                 .citation.not-first {
                     border-top: 1px solid #ddd;
                     padding-top: 1em;
+                }
+                .citation a {
+                    text-decoration: underline;
+                }
+                .citation .link a {
+                    text-decoration: none;
                 }
 
             h2 {
@@ -80,6 +96,16 @@
                 margin-top: 1.75em;
             }
 
+            footer {
+                margin-top: 32px;
+                background-color: #EEE;
+                padding: 1.5em 0;
+                font-size: 90%;
+            }
+                footer p:last-child {
+                    margin: 0;
+                }
+
         </style>
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap-theme.min.css" integrity="sha256-bHQiqcFbnJb1Qhh61RY9cMh6kR0gTuQY6iFOBj1yj00=" crossorigin="anonymous">
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css" integrity="sha256-VBrFgheoreGl4pKmWgZh3J23pJrhNlSUOBek+8Z2Gv0=" crossorigin="anonymous">
@@ -96,7 +122,7 @@
     <a href="https://github.com/unitedstates/uslaw.link"><img style="position: absolute; top: 0; right: 0; border: 0; z-index: 1031; max-height: 90px;" src="https://camo.githubusercontent.com/a6677b08c955af8400f44c6298f40e7d19cc5b2d/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f677261795f3664366436642e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_gray_6d6d6d.png"></a>
 
     <nav class="navbar navbar-default navbar-fixed-top">
-      <div class="container-fluid">
+      <div class="container">
         <div class="navbar-header">
           <a class="navbar-brand" href="/">uslaw.link</a>
         </div>
@@ -104,19 +130,18 @@
     </nav>
 
     <!-- Main jumbotron for a primary marketing message or call to action -->
-    <div class="jumbotron">
+    <div id="jumbotron">
       <div class="container">
-        <p style="margin: 0"><label for="citation" style="margin: 0; font-weight: normal;">Enter a citation:</label></p>
         <form onsubmit="return citator()">
-            <input id="citation" type="text" class="form-control" value="40 U.S.C. § 11101(1)" style="margin: .5em 0 1em 0; font-size: 18px">
+            <input id="citation" type="text" class="form-control" placeholder="enter a citation" title="Enter a citation." style="margin: .5em 0 1em 0; font-size: 18px">
         </form>
         <p style="margin-bottom: 1em">
             <a class="btn btn-primary" role="button" onclick="citator()">Get a Link &raquo;</a>
-            <a class="btn btn-default" role="button" onclick="$('#examples').slideToggle()">Examples</a>
+            <a id="examples-toggle" class="btn btn-default" role="button" onclick="$('#examples-toggle').toggleClass('active', !$('#examples').is(':visible')); $('#examples').slideToggle();">Help</a>
         </p>
 
         <div id="examples" style="display: none">
-            <h4 style="margin: 0">Examples</h4>
+            <div>Enter a citation in any of the following formats:</div>
             <div class="row">
                 <div class="col-xs-4">
                     <h5>Federal Statutory Law</h5>
@@ -156,14 +181,12 @@
         </div>
     </div> <!-- /container -->
 
-    <hr>
-
-    <div class="container-fluid">
-        <footer>
+    <footer>
+        <div class="container">
            <p>Source code is at <a href="https://github.com/unitedstates/uslaw.link">https://github.com/unitedstates/uslaw.link</a>.</p>
            <p>Contact <a href="https://razor.occams.info">Joshua Tauberer</a> at <a href="mailto:hello@uslaw.link">hello@uslaw.link</a> with any questions.</p>
-        </footer>
-    </div>
+        </div>
+    </footer>
 
         <div id="ajax_loading_indicator" style="display: none; position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 100000; text-align: center; background-color: rgba(255,255,255,.75)">
           <div style="margin: 20% auto">
@@ -207,10 +230,12 @@
         function citator(text) {
             if (!text) {
                 text = $('#citation').val();
+                if (!text) return;
             } else {
                 $('#citation').val(text);
             }
 
+            $('#examples-toggle').toggleClass('active', false); 
             $('#examples').slideUp();
             
             ajax_with_indicator({
