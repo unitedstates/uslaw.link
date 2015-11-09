@@ -13,6 +13,8 @@
 
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" integrity="sha256-MfvZlkHCEqatNoGiOXveE8FIwMzZg4W85qfrfIFBfYc=" crossorigin="anonymous">
         <style>
+            @import url(https://fonts.googleapis.com/css?family=Roboto+Slab:300,700);
+
             body {
                 padding-top: 50px;
                 padding-bottom: 20px;
@@ -22,11 +24,23 @@
                 color: #13F;
             }
 
+            .cite-font {
+                font-family: 'Roboto Slab', serif;
+            }
+
             #jumbotron {
                 background-color: #EEE;
                 padding: 1.5em 0;
                 margin-bottom: 32px;
             }
+                #jumbotron input {
+                    font-weight: bold;
+                    font-size: 26px;
+                    height: 42px;
+                    padding: 6px 12px;
+                    line-height: 1.4;
+                    color: #111;
+                }
 
             #examples {
             }
@@ -65,12 +79,15 @@
             }
 
             .cite-authority {
+                margin-top: 2px;
+                font-family: 'Roboto Slab', serif;
+                font-weight: 300;
                 font-size: 24px;
-                color: #444;
                 margin-bottom: .75em;
+                color: black;
             }
                 .parallel-cites .cite-authority {
-                    font-size: 16px;
+                    font-size: 14px;
                     margin-bottom: .5em;
                 }
 
@@ -133,7 +150,7 @@
     <div id="jumbotron">
       <div class="container">
         <form onsubmit="return citator()">
-            <input id="citation" type="text" class="form-control" placeholder="enter a citation" title="Enter a citation." style="margin: .5em 0 1em 0; font-size: 18px">
+            <input id="citation" type="text" class="form-control cite-font" placeholder="enter a citation" title="Enter a citation." style="margin: .5em 0 1em 0;">
         </form>
         <p style="margin-bottom: 1em">
             <a class="btn btn-primary" role="button" onclick="citator()">Get a Link &raquo;</a>
@@ -298,7 +315,7 @@
             var node = $("<div class='citation'></div>");
 
             var title = cite.citation || cite.match;
-            node.append($(!is_parallel ? '<h2/>' : '<h3/>').text(title));
+            node.append($(!is_parallel ? '<h2/>' : '<h3/>').addClass('cite-font').text(title));
 
             node.append($("<div class='cite-authority'/>").text(
                    cite.authority
