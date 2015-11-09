@@ -195,7 +195,9 @@
     </div>
 
     <div class="container">
-    	<div id="results">
+    	<div id="results-container">
+	    	<div id="results">
+	        </div>
         </div>
     </div> <!-- /container -->
 
@@ -255,7 +257,7 @@
 
             $('#examples-toggle').toggleClass('active', false); 
             $('#examples').slideUp();
-            
+
             ajax_with_indicator({
                 url: '/citation/find',
                 data: {
@@ -271,6 +273,11 @@
                     window.location.hash = "#text=" + encodeURIComponent($('#citation').val());
 
                     // display results
+
+                    // pin height of wrapper container
+                    $('#results-container').height($('#results-container').height());
+
+                    // load results
                     var results = $('#results');
                     results.text(''); // clear
                     var first = true;
@@ -282,10 +289,16 @@
                         first = false;
                     }
 
+                    // did we have any displayable results?
                     if (first)
                         alert("We don't have any links to that citation.");
+                   	// if so, scroll to them
                     else
                         smooth_scroll_to($('#results'));
+
+                    // expand height of wrapper container to the new appropriate height
+                    $('#results-container').animate({ height: $('#results').height() },
+                    	function() { $('#results-container').css({ height: 'auto' }) });
                 }
             })
             return false; // cancel form submit
@@ -437,7 +450,6 @@
               scrollTop: Math.max(elem.offset().top-100, 0)
           });
         }
-
         </script>
     </body>
 </html>
