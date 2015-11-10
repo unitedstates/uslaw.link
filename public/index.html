@@ -255,9 +255,10 @@
         }
 
         function run_from_text(text) {
-            // make this page a permalink
+            // Make this page a permalink. Put the citation into the URL
+            // fragment using query string-style encoding.
             if (/^\s*$/.exec(text)) return; // can't run an empty string
-            window.location.hash = "#text=" + encodeURIComponent(text);
+            window.location.hash = "#" + $.param({ text: text });
             // window hashchange event will fire, triggering the citator
         }
 
