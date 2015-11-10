@@ -60,6 +60,10 @@
                     border-top: 1px solid #ddd;
                     padding-top: 1em;
                 }
+                .citation .subhead {
+                    font-size: 90%;
+                    font-style: italic;
+                }
                 .citation a {
                     text-decoration: underline;
                 }
@@ -328,9 +332,24 @@
         function show_cite(cite, is_parallel) {
             var node = $("<div class='citation'></div>");
 
-            var title = cite.citation || cite.match;
-            node.append($(!is_parallel ? '<h2/>' : '<h3/>').addClass('cite-font').text(title));
+            // Display the canonical citation given to us in the heading, or
+            // if none is provided then just the matched string.
+            var heading_main = cite.citation || cite.match;
+            var heading_subhead = null;
+            if (cite.title) {
+                // If the citation has a nice document title, use that as
+                // the primary heading.
+                heading_subhead = heading_main;
+                heading_main = cite.title;
+            }
+            var heading_node = $(!is_parallel ? '<h2/>' : '<h3/>')
+                .addClass('cite-font')
+                .text(heading_main);
+            if (heading_subhead)
+                heading_node.append($("<div class='subhead'/>").text(heading_subhead));
+            node.append(heading_node);
 
+            // Show the authority (i.e. the type of citation) as a subhead.
             node.append($("<div class='cite-authority'/>").text(
                    cite.authority
                 || citation_authority_names[cite.type]

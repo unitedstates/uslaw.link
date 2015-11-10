@@ -70,6 +70,7 @@ function create_parallel_cite(type, citeobj) {
     type: type,
     authority: citator.authority ? citator.authority(citeobj) : null, // our own extension
     citation: citator.canonical ? citator.canonical(citeobj) : null,
+    title: citeobj.title
   };
   ret[type] = {
     id: citator.id(citeobj),
@@ -113,6 +114,10 @@ function get_from_usgpo_mods(cite, mods_url, callback) {
         cites.push(c);
         seen_cites[c.law.id] = c;
       }); 
+      xml.on('updateElement: mods > extension > shortTitle', function(elem) {
+      	// Add the 'title' metadata field to the original citation object.
+      	cite.title = elem.$text;
+      });
       xml.on('end', function() {
         // Remove links to GovTrack's us_law search page if we have a link directly to a bill.
         var has_govtrack_bill_link = false;
@@ -163,7 +168,8 @@ function get_from_courtlistener_search(cite, env, callback) {
           var new_citations = [];
           cases.forEach(function(item) {
             new_citations.push(create_parallel_cite('courtlistener_case', {
-              citation: item.case_name,
+              citation: item.citation,
+              title: item.case_name,
               court: item.court,
               link: "https://www.courtlistener.com" + item.absolute_url
             }));
