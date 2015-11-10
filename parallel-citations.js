@@ -41,6 +41,8 @@ var fetchers = {
   law: function(law, cite, env, callback) {
     if (law.links.usgpo)
       get_from_usgpo_mods(cite, law.links.usgpo.mods, callback);
+    else if (law.links.govtrack && law.links.govtrack.landing)
+      get_from_govtrack_search(cite, law.links.govtrack, callback);
     else
       callback([])
   },
@@ -115,8 +117,8 @@ function get_from_usgpo_mods(cite, mods_url, callback) {
         seen_cites[c.law.id] = c;
       }); 
       xml.on('updateElement: mods > extension > shortTitle', function(elem) {
-      	// Add the 'title' metadata field to the original citation object.
-      	cite.title = elem.$text;
+        // Add the 'title' metadata field to the original citation object.
+        cite.title = elem.$text;
       });
       xml.on('end', function() {
         // Remove links to GovTrack's us_law search page if we have a link directly to a bill.
@@ -141,6 +143,49 @@ function get_from_usgpo_mods(cite, mods_url, callback) {
       });
 
     });
+}
+
+function get_from_govtrack_search(cite, govtrack_link, callback) {
+  // The GovTrack link is to a search page. Hit the URL to
+  // see if it redirects to a bill.
+  var url = govtrack_link.landing;
+  request.get(url, function (error, response, body) {
+    var url = response.request.uri.href;
+    var m = /^https:\/\/www.govtrack.us\/congress\/bills\/(\d+)\/([a-z]+)(\d+)$/.exec(url);
+    if (!m) {
+      // Not a bill.
+      callback([])
+      return;
+    }
+
+    // The search page redirected to a bill. Use the hidden .json extension
+    // to get the API response for this bill.
+    var cites = [];
+    request.get(url + ".json", function (error, response, body) {
+      try {
+        var bill = JSON.parse(body);
+
+        // Add title information to the main citation object.
+        cite.title = bill.title_without_number;
+
+        // This citation is for a law, so add a new parallel citation
+        // record for the bill.
+        cites.push(create_parallel_cite('us_bill', {
+          congress: bill.congress,
+          bill_type: m[2], // easier to scrape from URL, code is not in the API response
+          number: bill.number,
+          title: bill.title
+        }));
+
+        // Delete the original govtrack link now that we have a better link
+        // as a parallel citation.
+        delete cite.law.links.govtrack;
+      } catch (e) {
+        // ignore error
+      }
+      callback(cites)
+    });
+  });
 }
 
 function get_from_courtlistener_search(cite, env, callback) {
