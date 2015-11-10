@@ -154,11 +154,11 @@
     <!-- Main jumbotron for a primary marketing message or call to action -->
     <div id="jumbotron">
       <div class="container">
-        <form onsubmit="return citator()">
+        <form onsubmit="return run_from_form()">
             <input id="citation" type="text" class="form-control cite-font" placeholder="enter a citation" title="Enter a citation." style="margin: .5em 0 1em 0;">
         </form>
         <p style="margin-bottom: 1em">
-            <a class="btn btn-primary" role="button" onclick="citator()">Get a Link &raquo;</a>
+            <a class="btn btn-primary" role="button" onclick="run_from_form()">Get a Link &raquo;</a>
             <a id="examples-toggle" class="btn btn-default" role="button" onclick="$('#examples-toggle').toggleClass('active', !$('#examples').is(':visible')); $('#examples').slideToggle();">Help</a>
         </p>
 
@@ -241,23 +241,31 @@
           $('#examples p').each(function() {
             var ex = $(this).text();
             $(this).text('');
-            $(this).append($('<a/>').text(ex).attr('href', '#').click(function() { citator(ex); return false }));
+            $(this).append($('<a/>').text(ex).attr('href', '#').click(function() { run_from_text(ex); return false }));
           })
 
-          // Load state from fragment.
-          var state = parse_qs(window.location.hash.substring(1));
-          if (state.text) {
-            citator(state.text);
-          }
+          // Run citator when the page hash changes, and immediately if
+          // the location fragment already has a citation.
+          $(window).on('hashchange', citator);
+          citator();
         });
 
-        function citator(text) {
-            if (!text) {
-                text = $('#citation').val();
-                if (!text) return;
-            } else {
-                $('#citation').val(text);
-            }
+        function run_from_form() {
+            run_from_text($('#citation').val())
+        }
+
+        function run_from_text(text) {
+            // make this page a permalink
+            if (/^\s*$/.exec(text)) return; // can't run an empty string
+            window.location.hash = "#text=" + encodeURIComponent(text);
+            // window hashchange event will fire, triggering the citator
+        }
+
+        function citator() {
+            var state = parse_qs(window.location.hash.substring(1));
+            if (!state.text) return;
+
+            $('#citation').val(state.text);
 
             $('#examples-toggle').toggleClass('active', false); 
             $('#examples').slideUp();
@@ -265,16 +273,13 @@
             ajax_with_indicator({
                 url: '/citation/find',
                 data: {
-                    text: text
+                    text: state.text
                 },
                 success: function(citations) {
                     if (citations.length == 0) {
                         alert("The citation was not understood.");
                         return;
                     }
-
-                    // make this page a permalink
-                    window.location.hash = "#text=" + encodeURIComponent($('#citation').val());
 
                     // display results
 
