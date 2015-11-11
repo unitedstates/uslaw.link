@@ -252,6 +252,7 @@
 
         function run_from_form() {
             run_from_text($('#citation').val())
+            return false; // cancel form submit
         }
 
         function run_from_text(text) {
@@ -311,7 +312,6 @@
                     	function() { $('#results-container').css({ height: 'auto' }) });
                 }
             })
-            return false; // cancel form submit
         }
 
         var citation_authority_names = {
