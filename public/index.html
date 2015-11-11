@@ -259,15 +259,15 @@
             // Make this page a permalink. Put the citation into the URL
             // fragment using query string-style encoding.
             if (/^\s*$/.exec(text)) return; // can't run an empty string
-            window.location.hash = "#" + $.param({ text: text });
+            window.location.hash = "#" + $.param({ q: text });
             // window hashchange event will fire, triggering the citator
         }
 
         function citator() {
             var state = parse_qs(window.location.hash.substring(1));
-            if (!state.text) return;
+            if (!state.q) return;
 
-            $('#citation').val(state.text);
+            $('#citation').val(state.q);
 
             $('#examples-toggle').toggleClass('active', false); 
             $('#examples').slideUp();
@@ -275,7 +275,7 @@
             ajax_with_indicator({
                 url: '/citation/find',
                 data: {
-                    text: state.text
+                    text: state.q
                 },
                 success: function(citations) {
                     if (citations.length == 0) {
