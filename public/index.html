@@ -323,15 +323,11 @@
             fedreg: "Federal Register",
             cfr: "Code of Federal Regulations",
 
+            reporter: "Case Law", // exact authority is very hard to decipher from the abbreviated name of the reporter publication in the citation -- but the Court Listener API will tell us more, and in most cases will mean we don't fall back to using this string
+
             dc_code: "Code of the District of Columbia",
             va_code: "Code of Virginia"
         };
-
-        var citation_authority_functions = {
-            reporter: function(cite) {
-                return cite.reporter.reporter + " Reporter";
-            }
-        }
 
         var link_formats = { "pdf": "PDF", "text": "Text", "landing": "Web Page", "html": "HTML", "mods": "MODS" };
 
@@ -359,7 +355,6 @@
             node.append($("<div class='cite-authority'/>").text(
                    cite.authority
                 || citation_authority_names[cite.type]
-                || (citation_authority_functions[cite.type] && citation_authority_functions[cite.type](cite))
                 || cite.type));
 
             node.append($("<div class='permalinks'/>"))

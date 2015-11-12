@@ -212,12 +212,19 @@ function get_from_courtlistener_search(cite, env, callback) {
 
           var new_citations = [];
           cases.forEach(function(item) {
+            // Add a new "parallel" citation for a disambiguated case.
             new_citations.push(create_parallel_cite('courtlistener_case', {
               citation: item.citation,
               title: item.case_name,
               court: item.court,
               link: "https://www.courtlistener.com" + item.absolute_url
             }));
+
+            // Set the "authority" field on the main citation object to the
+            // first 'court' string, so that the front end can display it instead
+            // of a default string "Reporter".
+            if (!cite.authority)
+              cite.authority = item.court;
           })
 
           // Call the callback. We don't add any new links, so we just return an empty object.
