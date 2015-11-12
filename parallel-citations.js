@@ -206,6 +206,28 @@ function get_from_courtlistener_search(cite, env, callback) {
           var cases = JSON.parse(body).objects;
           if (cases.length == 0) throw "no results";
 
+          // If there is a single unique response, just update the citation in place.
+          if (cases.length == 1) {
+            cite.title = cases[0].case_name; // add this, not provided by citation library
+            cite.authority = cases[0].court; // add this, not provided by citation library
+            cite.citation = cases[0].citation; // replace this --- citation library does a bad job of providing a normalized/canonical citation
+            cite.reporter.links.courtlistener = { // replace with new link
+              source: {
+                  name: "Court Listener",
+                  abbreviation: "CL",
+                  link: "https://www.courtlistener.com",
+                  authoritative: false
+              },
+              landing: "https://www.courtlistener.com" + cases[0].absolute_url
+            };
+
+            callback([]);
+            return;
+          }
+
+          // There are multiple matches for this citation. Treat them as
+          // parallel citations for display purposes.
+
           // Delete the original link. If we show cases, there's no need to show
           // a link to search results.
           delete cite.reporter.links.courtlistener;
