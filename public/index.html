@@ -83,6 +83,15 @@
                 font-weight: bold;
             }
 
+            .citation img {
+                margin-bottom: 1em;
+            }
+            .citation img.empty {
+                   width: 100%;
+                   height: 3em;
+                   border: 1px solid #DDD;
+                }
+
             .cite-authority {
                 margin-top: 2px;
                 font-family: 'Roboto Slab', serif;
@@ -329,6 +338,8 @@
             va_code: "Code of Virginia"
         };
 
+        var citators_with_icons = [ 'cornell_lii', 'courtlistener', 'govtrack', 'house', 'libraryofcongress', 'usgpo' ];
+
         var link_formats = { "pdf": "PDF", "text": "Text", "landing": "Web Page", "html": "HTML", "mods": "MODS" };
 
         function show_cite(cite, is_parallel) {
@@ -371,11 +382,20 @@
                     for (var source_key in cite[key].links) {
                         has_links = true;
 
-                        var link = $("<div class='permalink-source'>"
+                        var link = $("<div class='row'>"
+                            +"<div class='col-sm-1'><img class='img-responsive'></div>"
+                            +"<div class='col-sm-11'>"
                             +"<div class='link'><a/></div>"
                             +"<div class='source'><span/><a/></div>"
                             +"<div class='other hidden'><span>Other Formats:</span></div>"
-                            +"<p class='note'></p></div>");
+                            +"<p class='note'></p>"
+                            +"</div>"
+                            +"</div>");
+
+			if (citators_with_icons.indexOf(source_key) >= 0)
+                            link.find("img").attr('src', '/source-icons/' + source_key + '.png');
+                        else
+                            link.find("img").addClass('empty');
 
                         var source = cite[key].links[source_key].source;
                         link.find(".source a").text(source.name);
