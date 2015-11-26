@@ -11,8 +11,10 @@ wget -qO courtlistener.png https://pbs.twimg.com/profile_images/4876931860226416
 
 # resize
 for img in `ls *.png *.jpeg`; do
+    IMG2=$(echo $img | sed s/.jpeg/.png/);
     convert $img -geometry 150 /tmp/icon-$$ \
-        && mv /tmp/icon-$$ $img
+        && mv /tmp/icon-$$ $IMG2
+    if [ $img != $IMG2 ]; then rm $img; fi
 done
 
 # update client-side icon list!
