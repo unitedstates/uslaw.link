@@ -203,14 +203,20 @@
             </div>
         </div>
 
-        <p style="margin-top: 2em; font-size: 16px;"><b>uslaw.link</b> is based on <a href="https://github.com/unitedstates/citation">unitedstates/citation</a>. For live linking of citations, try <a href="https://github.com/18F/linkify-citations">18F/linkify-citations</a>.</p>
+        <hr style="margin: 2em 0 1em 0; border-color: #CCC;">
+
+        <div style="font-size: 13px;">
+            <p><img src="ddg.png" width="24" height="24" style="margin-right: .33em"/> Use <a href="https://duckduckgo.com/">duckduckgo</a>? The <a href="https://duckduckgo.com/bang?q=uslaw">!uslaw</a> bang takes you here.</p>
+
+            <p><b>uslaw.link</b> is based on <a href="https://github.com/unitedstates/citation">unitedstates/citation</a>. For live linking of citations, try <a href="https://github.com/18F/linkify-citations">18F/linkify-citations</a>.</p>
+        </div>
       </div>
     </div>
 
     <div class="container">
-    	<div id="results-container">
-	    	<div id="results">
-	        </div>
+        <div id="results-container">
+            <div id="results">
+            </div>
         </div>
     </div> <!-- /container -->
 
@@ -312,13 +318,13 @@
                     // did we have any displayable results?
                     if (first)
                         alert("We don't have any links to that citation.");
-                   	// if so, scroll to them
+                    // if so, scroll to them
                     else
                         smooth_scroll_to($('#results'));
 
                     // expand height of wrapper container to the new appropriate height
                     $('#results-container').animate({ height: $('#results').height() },
-                    	function() { $('#results-container').css({ height: 'auto' }) });
+                        function() { $('#results-container').css({ height: 'auto' }) });
                 }
             })
         }
@@ -392,7 +398,7 @@
                             +"</div>"
                             +"</div>");
 
-			if (citators_with_icons.indexOf(source_key) >= 0)
+            if (citators_with_icons.indexOf(source_key) >= 0)
                             link.find("img").attr('src', '/source-icons/' + source_key + '.png');
                         else
                             link.find("img").addClass('empty');
