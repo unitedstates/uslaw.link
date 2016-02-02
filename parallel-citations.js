@@ -193,7 +193,7 @@ function get_from_courtlistener_search(cite, env, callback) {
   if (link && env.courtlistener) {
     // This case is believed to be available at CourtListener. Do a search
     // for the citation at CL and use the first result.
-    request.get('https://www.courtlistener.com/api/rest/v2/search/?' + url.parse(link.landing).query,
+    request.get('https://www.courtlistener.com/api/rest/v3/search/?' + url.parse(link.landing).query,
       {
         auth: {
           user: env.courtlistener.username,
@@ -203,14 +203,14 @@ function get_from_courtlistener_search(cite, env, callback) {
       }, function (error, response, body) {
         try {
           if (error || !body) throw "no response";
-          var cases = JSON.parse(body).objects;
+          var cases = JSON.parse(body).results;
           if (cases.length == 0) throw "no results";
 
           // If there is a single unique response, just update the citation in place.
           if (cases.length == 1) {
-            cite.title = cases[0].case_name; // add this, not provided by citation library
+            cite.title = cases[0].caseName; // add this, not provided by citation library
             cite.authority = cases[0].court; // add this, not provided by citation library
-            cite.citation = cases[0].citation; // replace this --- citation library does a bad job of providing a normalized/canonical citation
+            cite.citation = cases[0].citation[0]; // replace this --- citation library does a bad job of providing a normalized/canonical citation
             cite.reporter.links.courtlistener = { // replace with new link
               source: {
                   name: "Court Listener",
@@ -225,35 +225,13 @@ function get_from_courtlistener_search(cite, env, callback) {
             return;
           }
 
-          // There are multiple matches for this citation. Treat them as
-          // parallel citations for display purposes.
+          // There are multiple matches for this citation. Preserve the original
+          // link to the CL search page.
 
-          // Delete the original link. If we show cases, there's no need to show
-          // a link to search results.
-          delete cite.reporter.links.courtlistener;
-
-          var new_citations = [];
-          cases.forEach(function(item) {
-            // Add a new "parallel" citation for a disambiguated case.
-            new_citations.push(create_parallel_cite('courtlistener_case', {
-              citation: item.citation,
-              title: item.case_name,
-              court: item.court,
-              link: "https://www.courtlistener.com" + item.absolute_url
-            }));
-
-            // Set the "authority" field on the main citation object to the
-            // first 'court' string, so that the front end can display it instead
-            // of a default string "Reporter".
-            if (!cite.authority)
-              cite.authority = item.court;
-          })
-
-          // Call the callback. We don't add any new links, so we just return an empty object.
-          callback(new_citations);
         } catch (e) {
-          callback([])
         }
+
+        callback([])
       })
   } else {
     callback([])
