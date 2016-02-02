@@ -270,30 +270,3 @@ Citation.types.us_bill = {
     }
   }
 };
-
-// courtlistener case citator stub
-Citation.types.courtlistener_case = {
-  id: function(cite) {
-    return "cl/" + cite.citation;
-  },
-  canonical: function(cite) {
-    return cite.citation;
-  },
-  authority: function(cite) {
-    return cite.court;
-  },
-  links: function(cite) {
-    return {
-      courtlistener: {
-        source: {
-            name: "Court Listener",
-            abbreviation: "CL",
-            link: "https://www.courtlistener.com",
-            authoritative: false
-        },
-
-        landing: cite.link
-      }
-    }
-  }
-};
