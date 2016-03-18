@@ -105,14 +105,16 @@
                     margin-bottom: .5em;
                 }
 
-            .link {
-                font-family: monospace;
-                font-weight: bold;
-                margin-bottom: 2px;
+            .permalinks > .row {
+                margin-bottom: 1em;
             }
 
-            .source span {
-                margin-right: 1em;
+            .link {
+                margin-bottom: .25em;
+            }
+            .link a {
+                font-size: 115%;
+                font-weight: bold;
             }
 
             .other a {
@@ -394,31 +396,28 @@
                         var link = $("<div class='row'>"
                             +"<div class='col-sm-1'><img class='img-responsive'></div>"
                             +"<div class='col-sm-11'>"
-                            +"<div class='link'><a/></div>"
-                            +"<div class='source'><span/><a/></div>"
-                            +"<div class='other hidden'><span>Other Formats:</span></div>"
-                            +"<p class='note'></p>"
+                            +"<div class='link'><a/> (<span class='link-type'></span>)</div>"
+                            +"<div class='note'></div>"
+                            +"<div class='other hidden'>also:</div>"
                             +"</div>"
                             +"</div>");
 
-            if (citators_with_icons.indexOf(source_key) >= 0)
+                        if (citators_with_icons.indexOf(source_key) >= 0)
                             link.find("img").attr('src', '/source-icons/' + source_key + '.png');
                         else
                             link.find("img").addClass('empty');
 
                         var source = cite[key].links[source_key].source;
-                        link.find(".source a").text(source.name);
-                        link.find(".source a").attr('href', source.link);
-                        link.find("p.note").text(source.note);
+                        link.find(".note").text(source.note);
 
                         var first_format = true;
                         for (var f in link_formats) {
                             var url = cite[key].links[source_key][f];
                             if (url) {
                                 if (first_format) {
-                                    link.find(".link a").text(url);
+                                    link.find(".link a").text(source.name);
                                     link.find(".link a").attr('href', url);
-                                    link.find(".source span").text(link_formats[f]);
+                                    link.find(".link-type").text(link_formats[f]);
                                     first_format = false;
                                 } else {
                                     var ff = $("<a/>")
