@@ -81,10 +81,9 @@ function create_parallel_cite(type, citeobj) {
     citation: citator.canonical ? citator.canonical(citeobj) : null,
     title: citeobj.title
   };
-  ret[type] = {
-    id: citator.id(citeobj),
-    links: citator.links(citeobj)
-  };
+  ret[type] = citeobj;
+  ret[type].id = citator.id(citeobj);
+  ret[type].links = Citation.getLinksForCitation(type, ret[type]);
   return ret;
 }
 
@@ -245,35 +244,22 @@ function get_from_courtlistener_search(cite, env, callback) {
   }
 }
 
-// us_bill citator stub
+// us_bill citator stub and extending linkers for citations to bills
 Citation.types.us_bill = {
   id: function(cite) {
     return "us_bill/" + cite.congress + "/" + cite.bill_type + "/" + cite.number;
   },
   canonical: function(cite) {
     return cite.bill_type.toUpperCase() + " " + cite.number + " (" + cite.congress + ")";
-  },
-  links: function(cite) {
-    return {
-      usgpo: {
-        source: {
-            name: "U.S. Government Publishing Office",
-            abbreviation: "US GPO",
-            link: "http://gpo.gov/",
-            authoritative: true
-        },
-        pdf: "http://api.fdsys.gov/link?collection=bills&congress=" + cite.congress + "&billtype=" + cite.bill_type + "&billnum=" + cite.number,
-      },
-      
-      govtrack: {
-        source: {
-            name: "GovTrack.us",
-            abbreviation: "GovTrack.us",
-            link: "https://www.govtrack.us/",
-            authoritative: false
-        },
-        landing: "https://www.govtrack.us/congress/bills/" + cite.congress + "/" + cite.bill_type + cite.number
-      }
-    }
+  }
+};
+Citation.links.gpo.citations.us_bill = function(cite) {
+  return {
+    pdf: "http://api.fdsys.gov/link?collection=bills&congress=" + cite.congress + "&billtype=" + cite.bill_type + "&billnum=" + cite.number
+  };
+}
+Citation.links.govtrack.citations.us_bill = function(cite) {
+  return {
+    landing: "https://www.govtrack.us/congress/bills/" + cite.congress + "/" + cite.bill_type + cite.number
   }
 };
