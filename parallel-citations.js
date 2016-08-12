@@ -42,7 +42,7 @@ var fetchers = {
     if (law.links.usgpo)
       get_from_usgpo_mods(cite, law.links.usgpo.mods, callback);
     else if (law.links.govtrack && law.links.govtrack.landing)
-      get_from_govtrack_search(cite, law.links.govtrack, callback);
+      get_from_govtrack_search(cite, law.links.govtrack, true, callback);
     else
       callback([])
   },
@@ -103,6 +103,7 @@ function get_from_usgpo_mods(cite, mods_url, callback) {
         elem = elem.$;
         if (elem.priority == "primary") { // not sure what "primary" means, but I hope it means the source bill and not a bill that happens to be mentioned in the statute
           var c = create_parallel_cite('us_bill', {
+            is_enacted: true, // flag for our linker that it's known to be enacted
             congress: parseInt(elem.congress),
             bill_type: elem.type.toLowerCase(),
             number: parseInt(elem.number)
@@ -157,7 +158,7 @@ function get_from_usgpo_mods(cite, mods_url, callback) {
     });
 }
 
-function get_from_govtrack_search(cite, govtrack_link, callback) {
+function get_from_govtrack_search(cite, govtrack_link, is_enacted, callback) {
   // The GovTrack link is to a search page. Hit the URL to
   // see if it redirects to a bill.
   var url = govtrack_link.landing;
@@ -183,6 +184,7 @@ function get_from_govtrack_search(cite, govtrack_link, callback) {
         // This citation is for a law, so add a new parallel citation
         // record for the bill.
         cites.push(create_parallel_cite('us_bill', {
+          is_enacted: is_enacted, // flag for our linker that it's known to be enacted
           congress: parseInt(bill.congress),
           bill_type: m[2], // easier to scrape from URL, code is not in the API response
           number: parseInt(bill.number),
@@ -260,11 +262,13 @@ Citation.types.us_bill = {
   }
 };
 Citation.links.gpo.citations.us_bill = function(cite) {
+  if (cite.congress < 103) return null;
   return {
     pdf: "http://api.fdsys.gov/link?collection=bills&congress=" + cite.congress + "&billtype=" + cite.bill_type + "&billnum=" + cite.number
   };
 }
 Citation.links.govtrack.citations.us_bill = function(cite) {
+  if (cite.congress < 93 && !cite.is_enacted) return null;
   return {
     landing: "https://www.govtrack.us/congress/bills/" + cite.congress + "/" + cite.bill_type + cite.number
   }
