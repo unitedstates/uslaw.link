@@ -99,6 +99,7 @@ function get_from_usgpo_mods(cite, mods_url, callback) {
 
       var xml = new XmlStream(s);
       xml.on('updateElement: mods > extension > bill', function(elem) {
+        // Statutes at Large and Public Law MODS files have references to an originating bill.
         elem = elem.$;
         if (elem.priority == "primary") { // not sure what "primary" means, but I hope it means the source bill and not a bill that happens to be mentioned in the statute
           var c = create_parallel_cite('us_bill', {
@@ -111,7 +112,9 @@ function get_from_usgpo_mods(cite, mods_url, callback) {
           seen_cites[c.us_bill.id] = c;
         }
       }); 
+
       xml.on('updateElement: mods > extension > law', function(elem) {
+        // Statutes at Large MODS files have references to a parallel public law citations.
         elem = elem.$;
         var c = create_parallel_cite('law', {
           congress: parseInt(elem.congress),
@@ -121,11 +124,14 @@ function get_from_usgpo_mods(cite, mods_url, callback) {
         if (c.law.id in seen_cites) return; // MODS has duplicative info
         cites.push(c);
         seen_cites[c.law.id] = c;
-      }); 
+      });
+
       xml.on('updateElement: mods > extension > shortTitle', function(elem) {
+        // Statutes at Large and Public Law MODS files have title information.
         // Add the 'title' metadata field to the original citation object.
         cite.title = elem.$text;
       });
+
       xml.on('end', function() {
         // Remove links to GovTrack's us_law search page if we have a link directly to a bill.
         var has_govtrack_bill_link = false;
