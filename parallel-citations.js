@@ -46,14 +46,21 @@ var fetchers = {
     else
       callback([])
   },
+
   usc: function(usc, cite, env, callback) {
     // Because of the ambiguity of dashes being within section numbers
-    // or delineating ranges, we can test of the citation actually exists
-    // now and delete links that don't resolve.
-    if (usc.links && usc.links.usgpo && usc.links.usgpo.pdf) {
-      request.get(usc.links.usgpo.pdf, function (error, response, body) {
-        // When the link fails, GPO gives a status 200 but an HTML page with an error.
-        if (response.headers['content-type'] != "application/pdf")
+    // or delineating ranges, we can test if the citation actually exists
+    // now and delete links that don't resolve by pinging the House OLRC
+    // URL. (OLRC is always up to date. GPO only publishes 'published'
+    // volumes and can be behind and not have new sections (or even titles).
+    if (usc.links && usc.links.house && usc.links.house.html) {
+      request.get({
+        uri: usc.links.house.html,
+        followRedirect: false
+      }, function (error, response, body) {
+        // When the link fails, OLRC gives a status 302 with a redirect to
+        // a docnotfound page.
+        if (response.statusCode != 200)
           delete cite.usc.links;
         callback([]);
       });
