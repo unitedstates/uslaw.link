@@ -102,9 +102,9 @@ function get_from_usgpo_mods(cite, mods_url, callback) {
         elem = elem.$;
         if (elem.priority == "primary") { // not sure what "primary" means, but I hope it means the source bill and not a bill that happens to be mentioned in the statute
           var c = create_parallel_cite('us_bill', {
-            congress: elem.congress,
+            congress: parseInt(elem.congress),
             bill_type: elem.type.toLowerCase(),
-            number: elem.number
+            number: parseInt(elem.number)
           });
           if (c.us_bill.id in seen_cites) return; // MODS has duplicative info
           cites.push(c);
@@ -114,9 +114,9 @@ function get_from_usgpo_mods(cite, mods_url, callback) {
       xml.on('updateElement: mods > extension > law', function(elem) {
         elem = elem.$;
         var c = create_parallel_cite('law', {
-          congress: elem.congress,
+          congress: parseInt(elem.congress),
           type: elem.isPrivate=='true' ? "private" : "public",
-          number: elem.number
+          number: parseInt(elem.number)
         });
         if (c.law.id in seen_cites) return; // MODS has duplicative info
         cites.push(c);
@@ -177,9 +177,9 @@ function get_from_govtrack_search(cite, govtrack_link, callback) {
         // This citation is for a law, so add a new parallel citation
         // record for the bill.
         cites.push(create_parallel_cite('us_bill', {
-          congress: bill.congress,
+          congress: parseInt(bill.congress),
           bill_type: m[2], // easier to scrape from URL, code is not in the API response
-          number: bill.number,
+          number: parseInt(bill.number),
           title: bill.title
         }));
 
