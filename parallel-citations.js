@@ -1,8 +1,7 @@
 var async = require('async');
 var request = require('request');
 var url = require('url');
-var Readable = require('stream').Readable
-var XmlStream = require('xml-stream');
+var xml2js = require('xml2js');
 
 var Citation = require('../citation');
 
@@ -89,72 +88,68 @@ function create_parallel_cite(type, citeobj) {
 
 function get_from_usgpo_mods(cite, mods_url, callback) {
   // Result Stat citation to equivalent Public Law citation.
-  var cites = [ ];
-  var seen_cites = { };
   request.get(mods_url, function (error, response, body) {
       // turn body back into a readable stream
-      var s = new Readable();
-      s.push(body)
-      s.push(null)
+      var xml = new xml2js.parseString(body, function (err, result) {
+        if (err)
+          console.log(err);
 
-      var xml = new XmlStream(s);
-      xml.on('updateElement: mods > extension > bill', function(elem) {
-        // Statutes at Large and Public Law MODS files have references to an originating bill.
-        elem = elem.$;
-        if (elem.priority == "primary") { // not sure what "primary" means, but I hope it means the source bill and not a bill that happens to be mentioned in the statute
-          var c = create_parallel_cite('us_bill', {
-            is_enacted: true, // flag for our linker that it's known to be enacted
-            congress: parseInt(elem.congress),
-            bill_type: elem.type.toLowerCase(),
-            number: parseInt(elem.number)
+        var cites = [ ];
+        var seen_cites = { };
+
+        if (result.mods && result.mods.extension) {
+          result.mods.extension.forEach(function(extension) {
+            if (cite.type == "stat" || cite.type == "law") {
+              // Statutes at Large and Public Law MODS files have references to an originating bill.
+              if (extension.bill) {
+                var elem = extension.bill[0].$;
+                if (elem.priority == "primary") { // not sure what "primary" means, but I hope it means the source bill and not a bill that happens to be mentioned in the statute
+                  var c = create_parallel_cite('us_bill', {
+                    is_enacted: true, // flag for our linker that it's known to be enacted
+                    congress: parseInt(elem.congress),
+                    bill_type: elem.type.toLowerCase(),
+                    number: parseInt(elem.number)
+                  });
+                  if (c.us_bill.id in seen_cites) return; // MODS has duplicative info
+                  cites.push(c);
+                  seen_cites[c.us_bill.id] = c;
+                }
+              }
+
+              // Statutes at Large MODS files have references to a parallel public law citations.
+              if (extension.law) {
+                var elem = extension.law[0].$;
+                var c = create_parallel_cite('law', {
+                  congress: parseInt(elem.congress),
+                  type: elem.isPrivate=='true' ? "private" : "public",
+                  number: parseInt(elem.number)
+                });
+                if (c.law.id in seen_cites) return; // MODS has duplicative info
+                cites.push(c);
+                seen_cites[c.law.id] = c;
+              }
+            }
+
+            // Statutes at Large and Public Law MODS files have title information.
+            // Other MODS files have other basic title information.
+            // Add the 'title' metadata field to the original citation object.
+            if (extension.shortTitle) {
+              var elem = extension.shortTitle[0];
+              if (typeof elem == "string")
+                cite.title = elem;
+              else if (typeof elem._ == "string")
+                cite.title = elem._;
+            } else if (extension.searchTitle) {
+              var elem = extension.searchTitle[0];
+              cite.title = elem;
+            }
+
           });
-          if (c.us_bill.id in seen_cites) return; // MODS has duplicative info
-          cites.push(c);
-          seen_cites[c.us_bill.id] = c;
-        }
-      }); 
-
-      xml.on('updateElement: mods > extension > law', function(elem) {
-        // Statutes at Large MODS files have references to a parallel public law citations.
-        elem = elem.$;
-        var c = create_parallel_cite('law', {
-          congress: parseInt(elem.congress),
-          type: elem.isPrivate=='true' ? "private" : "public",
-          number: parseInt(elem.number)
-        });
-        if (c.law.id in seen_cites) return; // MODS has duplicative info
-        cites.push(c);
-        seen_cites[c.law.id] = c;
-      });
-
-      xml.on('updateElement: mods > extension > shortTitle', function(elem) {
-        // Statutes at Large and Public Law MODS files have title information.
-        // Add the 'title' metadata field to the original citation object.
-        cite.title = elem.$text;
-      });
-
-      xml.on('end', function() {
-        // Remove links to GovTrack's us_law search page if we have a link directly to a bill.
-        var has_govtrack_bill_link = false;
-        for (var i = 0; i < cites.length; i++)
-          if (cites[i].type == "us_bill")
-            has_govtrack_bill_link = true;
-        if (has_govtrack_bill_link) {
-          if (cite.type == "law")
-            delete cite.law.links.govtrack;
-          for (var i = 0; i < cites.length; i++)
-            if (cites[i].type == "law")
-              delete cites[i].law.links.govtrack;
         }
 
         // Callback.
         callback(cites);
       });
-      xml.on('error', function(e) {
-        // ignore errors ('end' is still called)
-        console.log(e);
-      });
-
     });
 }
 

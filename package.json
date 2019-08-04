@@ -23,7 +23,7 @@
     "async": "*",
     "express": "^4.17.1",
     "request": "^2.88.0",
-    "xml-stream": "*"
+    "xml2js": "^0.4.19"
   },
   "engines": {
     "node": ">=0.10"
