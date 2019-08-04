@@ -20,11 +20,10 @@
     "uslawdotlink": "./server.js"
   },
   "dependencies": {
-    "request": "*",
-    "xml-stream": "*",
-    "express": "4.x",
-
-    "async": "*"
+    "async": "*",
+    "express": "^4.17.1",
+    "request": "^2.88.0",
+    "xml-stream": "*"
   },
   "engines": {
     "node": ">=0.10"
