@@ -87,7 +87,7 @@ function create_parallel_cite(type, citeobj) {
   var citator = Citation.types[type];
   var ret = {
     type: type,
-    authority: citator.authority ? citator.authority(citeobj) : null, // our own extension
+    type_name: citator.name,
     citation: citator.canonical ? citator.canonical(citeobj) : null,
     title: citeobj.title
   };
@@ -229,7 +229,7 @@ function get_from_courtlistener_search(cite, env, callback) {
           // If there is a single unique response, just update the citation in place.
           if (cases.length == 1) {
             cite.title = cases[0].caseName; // add this, not provided by citation library
-            cite.authority = cases[0].court; // add this, not provided by citation library
+            cite.type_name = cases[0].court; // add this, not provided by citation library
             cite.citation = cases[0].citation[0]; // replace this --- citation library does a bad job of providing a normalized/canonical citation
             cite.reporter.links.courtlistener = { // replace with new link
               source: {
@@ -269,6 +269,7 @@ Citation.types.us_bill = {
   id: function(cite) {
     return "us_bill/" + cite.congress + "/" + cite.bill_type + "/" + cite.number;
   },
+  name: "U.S. Legislation",
   canonical: function(cite) {
     return (us_bill_type_display[cite.bill_type] || cite.bill_type.toUpperCase()) + " " + cite.number + " (" + ordinal(cite.congress) + " Congress)";
   }

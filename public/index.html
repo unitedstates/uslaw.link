@@ -334,22 +334,6 @@
             })
         }
 
-        var citation_authority_names = {
-            usconst: "United States Constitution",
-            usc: "United States Code",
-            law: "U.S. Slip Law",
-            stat: "U.S. Statutes at Large",
-            us_bill: "U.S. Bills and Resolutions",
-
-            fedreg: "Federal Register",
-            cfr: "Code of Federal Regulations",
-
-            reporter: "Case Law", // exact authority is very hard to decipher from the abbreviated name of the reporter publication in the citation -- but the Court Listener API will tell us more, and in most cases will mean we don't fall back to using this string
-
-            dc_code: "Code of the District of Columbia",
-            va_code: "Code of Virginia"
-        };
-
         var citators_with_icons = [ 'cornell_lii', 'courtlistener', 'govtrack', 'house', 'libraryofcongress', 'usgpo', 'nara' ];
 
         var link_formats = { "pdf": "PDF", "text": "Text", "landing": "Web Page", "html": "HTML", "mods": "MODS" };
@@ -376,8 +360,7 @@
 
             // Show the authority (i.e. the type of citation) as a subhead.
             node.append($("<div class='cite-authority'/>").text(
-                   cite.authority
-                || citation_authority_names[cite.type]
+                   cite.type_name
                 || cite.type));
 
             node.append($("<div class='permalinks'/>"))
