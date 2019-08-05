@@ -111,6 +111,20 @@ function get_from_usgpo_mods(cite, mods_url, callback) {
         if (result.mods && result.mods.extension) {
           result.mods.extension.forEach(function(extension) {
             if (cite.type == "stat" || cite.type == "law") {
+
+              // Statutes at Large MODS files have references to a parallel public law citations.
+              if (extension.law) {
+                var elem = extension.law[0].$;
+                var c = create_parallel_cite('law', {
+                  congress: parseInt(elem.congress),
+                  type: elem.isPrivate=='true' ? "private" : "public",
+                  number: parseInt(elem.number)
+                });
+                if (c.law.id in seen_cites) return; // MODS has duplicative info
+                cites.push(c);
+                seen_cites[c.law.id] = c;
+              }
+
               // Statutes at Large and Public Law MODS files have references to an originating bill.
               if (extension.bill) {
                 var elem = extension.bill[0].$;
@@ -127,18 +141,6 @@ function get_from_usgpo_mods(cite, mods_url, callback) {
                 }
               }
 
-              // Statutes at Large MODS files have references to a parallel public law citations.
-              if (extension.law) {
-                var elem = extension.law[0].$;
-                var c = create_parallel_cite('law', {
-                  congress: parseInt(elem.congress),
-                  type: elem.isPrivate=='true' ? "private" : "public",
-                  number: parseInt(elem.number)
-                });
-                if (c.law.id in seen_cites) return; // MODS has duplicative info
-                cites.push(c);
-                seen_cites[c.law.id] = c;
-              }
             }
 
             // Statutes at Large and Public Law MODS files have title information.
@@ -283,6 +285,7 @@ Citation.links.gpo.citations.us_bill = function(cite) {
 Citation.links.govtrack.citations.us_bill = function(cite) {
   if (cite.congress < 93 && !cite.is_enacted) return null;
   return {
-    landing: "https://www.govtrack.us/congress/bills/" + cite.congress + "/" + cite.bill_type + cite.number
+    landing: "https://www.govtrack.us/congress/bills/" + cite.congress + "/" + cite.bill_type + cite.number,
+    html: "https://www.govtrack.us/congress/bills/" + cite.congress + "/" + cite.bill_type + cite.number + "/text"
   }
 };
