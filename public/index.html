@@ -34,6 +34,7 @@
                 background-color: #F3F3F3;
                 padding: 1.5em 0;
                 margin-bottom: 32px;
+                transition: all 0.5s;
             }
                 #jumbotron input {
                     font-weight: bold;
@@ -43,6 +44,18 @@
                     line-height: 1.4;
                     color: #111;
                 }
+                #jumbotron.small {
+                  padding: .5em 0;
+                }
+                  #jumbotron.small input {
+                      font-size: 16px;
+                      height: 24px;
+                      padding: 6px 6px;
+                  }
+                  #jumbotron.small button.btn {
+                    font-size: 14px;
+                    padding: 2px 4px;
+                  }
 
             #examples {
             }
@@ -240,10 +253,22 @@
             $(this).attr('title', null);
           })
 
-          // Run citator when the page hash changes, and immediately if
-          // the location fragment already has a citation.
-          $(window).on('hashchange', citator);
-          if (!citator())
+          // Run citator when the page hash changes.
+          $(window).on('hashchange', run_from_hash);
+          $(window).on('popstate', run_from_state);
+
+          // Directly show results if this page comes on a /citation/* path,
+          // or from a query in the URL fragment. If there's nothing to show,
+          // set the focus in the query input box.
+          var direct_citation = null;
+          if (direct_citation) {
+            run_from_json(direct_citation);
+            return;
+          }
+
+          // Try parsing the citation in the location fragment. If
+          // there is no input there, put the focus in the input box.
+          if (!run_from_hash())
             $('#citation').focus();
         });
 
@@ -256,15 +281,37 @@
             // Make this page a permalink. Put the citation into the URL
             // fragment using query string-style encoding.
             if (/^\s*$/.exec(text)) return; // can't run an empty string
-            window.location.hash = "#" + $.param({ q: text });
-            // window hashchange event will fire, triggering the citator
+            run(text);
         }
 
-        function citator() {
+        function run_from_hash(is_in_popstate) {
             var state = parse_qs(window.location.hash.substring(1));
-            if (!state.q) return;
+            if (!state.q) {
+              $('#results-container').text('');
+              $('#results-container').css({ height: 'auto' });
+              return false;
+            }
+            run(state.q, is_in_popstate);
+            return true;
+        }
 
-            $('#citation').val(state.q);
+        function run_from_state(event) {
+          // If the URL looks like an ID, use it. Otherwise, use the hash.
+          console.log("loading", event.originalEvent.state);
+          if (event.originalEvent.state)
+            run_from_json(event.originalEvent.state)
+          else
+            run_from_hash(true);
+        }
+
+        function run_from_json(cite) {
+          $('#results-container').text('');
+          $('#results-container').append(show_cite(cite));
+          $('#citation').val(cite.citation || "");
+        }
+
+        function run(q, is_in_popstate) {
+            $('#citation').val(q);
 
             $('#examples-toggle').toggleClass('active', false); 
             $('#examples').hide();
@@ -280,7 +327,7 @@
             $.ajax({
                 url: '/citation/find',
                 data: {
-                    text: state.q
+                    text: q
                 },
                 success: function(citations) {
                     if (citations.length == 0) {
@@ -301,10 +348,32 @@
                     // expand height of wrapper container to the new appropriate height
                     $('#results-container').animate({ height: $('#results').height() },
                         function() { $('#results-container').css({ height: 'auto' }) });
+
+                    // If the citation resolved uniquely to a citation that has an 'id'
+                    // that we can parse with fromId, then update the page URL using
+                    // the structured id. If we're in the middle of a back/forward button
+                    // page navigation, don't update the URL because that destroys forward
+                    // history.
+                    if (!is_in_popstate) {
+                      if (citations.length == 1 && citations[0].can_permalink) {
+                        var id = citations[0][citations[0].type].id;
+                        history.pushState(citations[0], "", "/citation/" + id);
+                      } else {
+                        // otherwise, update the URL by putting the query into the fragment
+                        // (We could use `window.location.hash = "#q=..."` but when we're
+                        // at a URL other than /, we want to reset the URL to /#q=. The
+                        // window hashchange event will fire automatically when we use
+                        // this method, triggering the citator. But it doesn't fire
+                        // automatically when we use history.pushState.)
+                        history.pushState(null, "", "/#" + $.param({ q: q }));
+                      }
+                    }
+
+                    // once we show results, set '#jumbotron.small' class, which causes
+                    // a smooth animation to a collapsed state
+                    $('#jumbotron').addClass("small");
                 }
             });
-
-            return true;
         }
 
         var citators_with_icons = [ 'cornell_lii', 'courtlistener', 'govtrack', 'house', 'libraryofcongress', 'usgpo', 'nara' ];

@@ -108,7 +108,7 @@ function get_from_usgpo_mods(cite, mods_url, callback) {
         var cites = [ ];
         var seen_cites = { };
 
-        if (result.mods && result.mods.extension) {
+        if (result && result.mods && result.mods.extension) {
           result.mods.extension.forEach(function(extension) {
             if (cite.type == "stat" || cite.type == "law") {
 
