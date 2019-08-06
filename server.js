@@ -4,7 +4,7 @@ const fs = require('fs');
 const async = require('async');
 const buffer_replace = require('buffer-replace');
 
-const Citation = require('../citation');
+const Citation = require('./citation');
 const ParallelCitations = require("./parallel-citations.js");
 
 // our environment

@@ -3,7 +3,7 @@ var request = require('request');
 var url = require('url');
 var xml2js = require('xml2js');
 
-var Citation = require('../citation');
+var Citation = require('./citation');
 
 exports.get = function(cite, env, callback) {
   // Run the parallel citation fetchers over any available citation matches.
