@@ -116,10 +116,7 @@ app
 
 // development vs production
 if (env.debug)
-  app.use(require('errorhandler')({dumpExceptions: true, showStack: true}))
-else
   app.use(require('errorhandler')())
-
 
 // routes
 app.route('/citation/find').get(ajax_route).post(ajax_route);

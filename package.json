@@ -22,7 +22,9 @@
   "dependencies": {
     "async": "*",
     "buffer-replace": "^1.0.0",
+    "errorhandler": "^1.5.1",
     "express": "^4.17.1",
+    "forever": "^1.0.0",
     "request": "^2.88.0",
     "xml2js": "^0.4.19"
   },
