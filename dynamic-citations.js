@@ -171,6 +171,7 @@ function run_usc_check(citation, callback) {
 
 run_citation_methods = [
   run_usgpo_mods,
+  run_usgpo_related_docs,
   run_govtrack_search,
   run_legisworks_publaw,
 ];
@@ -271,6 +272,37 @@ function run_usgpo_mods(citation, is_top_level, new_parallel_cites, env, callbac
         callback();
       });
     });
+}
+
+function run_usgpo_related_docs(citation, is_top_level, new_parallel_cites, env, callback) {
+  // Use a hidden API on GovInfo.gov to get the Statutes at Large
+  // citation using a Public Law citation.
+  if (!is_top_level || !citation.law || citation.law.type != "public") {
+    callback(); // no URL
+    return;
+  }
+
+  // Hit the URL.
+  var url = "https://www.govinfo.gov/wssearch/publink/PLAW/PLAW-" + citation.law.congress + "publ" + citation.law.number + "/STATUTE";
+  request.get(url, function (error, response, body) {
+    var data = JSON.parse(body);
+    data.forEach((collection) => {
+      if (collection.collectioncode != "STATUTE")
+        return;
+      collection.contents.forEach((package) => {
+        var m = /^STATUTE-(\d+)-Pg(\d+)$/.exec(package.granuleId);
+        if (!m) return;
+        var c = create_parallel_cite('stat', {
+          volume: parseInt(m[1]),
+          page: parseInt(m[2])
+        });
+        new_parallel_cites.push(c);
+      });
+    })
+
+    // Callback.
+    callback();
+  });
 }
 
 function run_govtrack_search(citation, is_top_level, new_parallel_cites, env, callback) {
