@@ -26,32 +26,16 @@ try {
 
 var index_html = fs.readFileSync(__dirname + '/public/index.html');
 
-var add_additional_citation_information = function(citations, callback) {
-  // Citations may be ambiguous --- use dynamic data to explode citations.
-  async.map(citations, function (citation, callback) {
-    DynamicCitations.explode(citation, env, callback);
-  }, function (err, results) {
-    // Flatten results.
-    var citations = [];
-    results.forEach(function(original_cite_results) {
-      original_cite_results.forEach(function(cite) {
-        citations.push(cite);
-      });
+var add_dynamic_data = function(citations, callback) {
+  DynamicCitations.run(citations, env, function(citations) {
+    // Mark each citation as being permalinkable or not if
+    // it has a fromId function to reverse permalinks.
+    citations.forEach((cite) => {
+      cite.can_permalink = typeof Citation.types[cite.type].fromId == "function";
     })
-    
-    // For each result, add dynamic links and parallel citations.
-    async.each(citations, function (citation, callback) {
-      // Mark each citation as being permalinkable or not.
-      citation.can_permalink = typeof Citation.types[citation.type].fromId == "function";
 
-      // Get the parallel citations for a citation.
-      DynamicCitations.add_parallel_citations(citation, env, function(new_citations) {
-        citation.parallel_citations = (citation.parallel_citations || []).concat(new_citations || []);
-        callback();
-      })
-    }, function (err) {
-      callback(citations);
-    });
+    // Done.
+    callback(citations);
   });
 }
 
@@ -60,15 +44,15 @@ var ajax_route = function(req, res) {
 
   // Run the citation extractor.
   var options = { links: true };
-  var results = Citation.find(text, options).citations;
+  var citations = Citation.find(text, options).citations;
 
   // Fetch parallel citations for each matched citation (the input may
   // yield multiple distinct matched citations, as an array). Adorn each
   // citation with a list of parallel citations.
-  add_additional_citation_information(results, function (results) {
+  add_dynamic_data(citations, function(citations) {
     // Send response.
     res.set({'Content-Type': 'application/json'});
-    res.send(JSON.stringify(results));
+    res.send(JSON.stringify(citations));
   });
 };
 
@@ -76,36 +60,18 @@ var direct_route = function(req, res) {
   // Get the citation ID from the URL.
   var id = req.url.substring('/citation/'.length);
   
-  // Get the Citator class. Check that it has a fromId method.
-  var type;
-  var citator;
-  var citeobj;
-  for (type in Citation.types) {
-    citator = Citation.types[type];
-    if (!citator.fromId) continue;
-    citeobj = citator.fromId(id);
-    if (citeobj) break;
-  }
-  if (!citeobj) {
+  var cite = Citation.fromId(id, { links: true });
+  if (!cite) {
     res.set({'Content-Type': 'text/html'});
     res.send(index_html);
     return;
   }
 
-  // Construct the resulting citation object.
-  var citeobj = citator.fromId(id);
-  var cite = {
-    type: type,
-    type_name: citator.name,
-    citation: citator.canonical ? citator.canonical(citeobj) : null,
-    title: citeobj.title
-  };
-  cite[type] = citeobj;
-  cite[type].id = citator.id(citeobj);
-  cite[type].links = Citation.getLinksForCitation(type, cite[type]);
+  // Add our own field.
+  cite.title = cite[cite.type].title;
 
   // Get the parallel citations.
-  add_additional_citation_information([cite], function(results) {
+  add_dynamic_data([cite], function(citations) {
     // Construct page.
     var page = index_html;
     page = buffer_replace(
@@ -115,7 +81,7 @@ var direct_route = function(req, res) {
     page = buffer_replace(
       page,
       "var direct_citations = null;",
-      "var direct_citations = " + JSON.stringify(results) + ";")
+      "var direct_citations = " + JSON.stringify(citations) + ";")
 
     res.set({'Content-Type': 'text/html'});
     res.send(page);

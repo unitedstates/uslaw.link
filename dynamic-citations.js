@@ -7,100 +7,173 @@ const yaml = require('js-yaml');
 
 const Citation = require('./citation');
 
-exports.explode = function(cite, env, callback) {
-  if (cite.stat && cite.stat.volume <= 64) {
-    // Use the Legisworks Statutes at Large data to explode ambiguous
-    // SAL citations into multiple entries.
-   get_from_legisworks(cite, function(matches) {
-    callback(null, matches);
+exports.run = function(citations, env, callback) {
+  // Run dynamic citation processing on the given citations.
+  //
+  // Three functions are performed:
+  //
+  // * Citations can be determined to be ambiguous and may
+  //   be exploded into separate citations (e.g. X Stat Y
+  //   citations, because multiple laws can appear on the
+  //   same page).
+  // * Additional links are added that are resolved at run-time.
+  // * Parallel citations are added into a new parallel_citations
+  //   property on each citation. This is an array that holds
+  //   other citations, like see-also's.
+  //
+  // Because the functions add new citation objects, we
+  // perform this operation iteratively until no new citation
+  // objects are added.
+
+  // Add a parallel_citations array to each citation, which also
+  // marks it as a top-level citation, since we do not recursively
+  // fetch the parallel citations of parallel citations.
+  citations.forEach((c) => { c.parallel_citations = [] });
+
+  // Begin iteratively processing citations.
+  run_citations(citations, [], env, callback);
+}
+
+function run_citations(citations, finished, env, callback) {
+  // Run the citations asynchronously.
+  async.map(citations, function(citation, callback) {
+    run_citation(citation, !!citation.parallel_citations, env, callback);
+  }, function (err, results) {
+    // Each result is a data structure that holds citations
+    // that are finished processing and citations that are
+    // new and therefore still need to be processed.
+    var queue = [];
+    results.forEach((result) => {
+      // Take all finished items.
+      result.finished.forEach((cite) => { finished.push(cite); });
+
+      // Queue all new citation replacements for the original item.
+      result.queue_top_level.forEach((cite) => {
+        if (!cite.parallel_citations)
+          cite.parallel_citations = [];
+        queue.push(cite);
+      });
+
+      // Queue all new parallel citations.
+      result.queue_parallel_cite.forEach((cite) => { queue.push(cite); });
+    });
+
+    // If there is nothing left to process, then pass the results
+    // to the callback.
+    if (queue.length == 0)
+      callback(finished);
+
+    // Otherwise, process the items on the queue.
+    else
+      run_citations(queue, finished, env, callback);
+  });
+}
+
+function run_citation(citation, is_top_level, env, callback) {
+  // Use the Legisworks Statutes at Large data to explode ambiguous
+  // SAL citations into multiple entries. The page referred to in
+  // a X Stat Y citation can have multiple entries, each with a different
+  // set of links, so we split them up.
+  //
+  // Run this function only if we haven't already done so on this citation,
+  // by looking at whether we added link metadata.
+  if (citation.stat && !citation.stat.links.legisworks) {
+   run_citation_legisworks(citation, is_top_level, function(new_matches, parallel_citations) {
+     if (is_top_level)
+      new_matches.forEach((c) => { c.parallel_citations = c.parallel_citations || []; });
+     callback(
+       null, // no error
+       {
+         finished: [],
+         queue_top_level: is_top_level ? new_matches : [],
+         queue_parallel_cite: parallel_citations.concat(is_top_level ? [] : new_matches),
+       });
    });
    return;
   }
 
-  callback(null, [cite]);
-}
+  // Use the Courtlistener API to explode potentially ambiguous reporter citations.
+  // Run this function only if we haven't already done so on this citation.
+  if (citation.reporter && citation.reporter.links.courtlistener && env && !citation.reporter.checked) {
+   run_courtlistener_search(citation, is_top_level, env, function(new_matches, parallel_citations) {
+     if (is_top_level)
+      new_matches.forEach((c) => { c.parallel_citations = c.parallel_citations || []; });
+     new_matches.forEach((c) => { c.reporter.checked = true; });
+     callback(
+       null, // no error
+       {
+         finished: [],
+         queue_top_level: is_top_level ? new_matches : [],
+         queue_parallel_cite: parallel_citations.concat(is_top_level ? [] : new_matches),
+       });
+   });
+   return;
+  }
 
-exports.add_parallel_citations = function(cite, env, callback) {
-  // Run the parallel citation fetchers over any available citation matches.
-  // Each fetcher can either:
-  //   1) Adorn 'cite' with new link sources.
-  //   2) Call callback() passing an array of other citations to display.
-  var new_citations = [ ];
-  async.forEachOf(fetchers, function (fetcher_function, cite_type, callback) {
-    if (!(cite_type in cite)) {
-      // citation of this type not present in the citation
-      callback();
-      return;
-    }
+  // Because of the ambiguity in UCS cites of dashes being within section numbers
+  // or delineating ranges, we can test if the citation actually exists
+  // now and delete links that don't resolve by pinging the House OLRC
+  // URL.
+  if (citation.usc && citation.usc.links.house && citation.usc.links.house.html && !citation.usc.checked && is_top_level) {
+   run_usc_check(citation, function(ok) {
+     citation.usc.checked = true;
+     callback(
+       null, // no error
+       {
+         finished: [],
+         queue_top_level: ok ? [citation] : [],
+         queue_parallel_cite: [],
+       });
+   });
+   return;
+  }
 
-    // Call the fetcher function.
-    fetcher_function(cite[cite_type], cite, env, function(new_cites) {
-      // It gives us back an array of new citations. Accumulate them.
-      new_cites.forEach(function(item) { new_citations.push(item); })
-      callback(); // signal OK
-    })
-  }, function(err) {
-    // all fetchers have run
-    callback(new_citations);
+  // Run other methods that add links and new parallel citations, but
+  // do not explode citations.
+  var new_parallel_cites = [];
+  async.each(run_citation_methods, function(method, callback) {
+    method(citation, is_top_level, new_parallel_cites, env, callback);
+  }, function (err, results) {
+    // Check that we don't get duplicate parallel citations.
+    var qpc = [];
+    new_parallel_cites.forEach((c) => {
+      var ok = true;
+      citation.parallel_citations.forEach((cc) => {
+        if (c[c.type].id == cc[cc.type].id)
+          ok = false;
+      });
+      if (ok) {
+        citation.parallel_citations.push(c);
+        qpc.push(c);
+      }
+    });
+
+    callback(
+      null, // no error
+      {
+        finished: is_top_level ? [citation] : [],
+        queue_top_level: [],
+        queue_parallel_cite: qpc
+      });    
   });
 }
 
-var fetchers = {
-  stat: function(stat, cite, env, callback) {
-    // If we have a link to US GPO's GovInfo.gov side, load the MODS XML
-    // metadata file for additional information.
-    if (stat.links.usgpo)
-      get_from_usgpo_mods(cite, stat.links.usgpo.mods, callback);
-    else
-      callback([])
-  },
-  law: function(law, cite, env, callback) {
-    if (law.links.usgpo)
-      get_from_usgpo_mods(cite, law.links.usgpo.mods, callback);
-    else if (law.congress >= 60 && law.congress <= 81)
-      get_from_legisworks_publaw(cite, callback);
-    else if (law.links.govtrack && law.links.govtrack.landing)
-      get_from_govtrack_search(cite, law.links.govtrack, true, callback);
-    else
-      callback([])
-  },
-  usc: function(usc, cite, env, callback) {
-    // Because of the ambiguity of dashes being within section numbers
-    // or delineating ranges, we can test if the citation actually exists
-    // now and delete links that don't resolve by pinging the House OLRC
-    // URL. (OLRC is always up to date. GPO only publishes 'published'
-    // volumes and can be behind and not have new sections (or even titles).
-    if (usc.links && usc.links.house && usc.links.house.html) {
-      request.get({
-        uri: usc.links.house.html,
-        followRedirect: false
-      }, function (error, response, body) {
-        // When the link fails, OLRC gives a status 302 with a redirect to
-        // a docnotfound page.
-        if (response.statusCode != 200)
-          delete cite.usc.links;
-        callback([]);
-      });
-    } else {
-      callback([])
-    }
-  },
-  cfr: function(cfr, cite, env, callback) {
-    if (cfr.links.usgpo)
-      get_from_usgpo_mods(cite, cfr.links.usgpo.mods, callback);
-    else
-      callback([])
-  },
-  fedreg: function(fedreg, cite, env, callback) {
-    if (fedreg.links.usgpo)
-      get_from_usgpo_mods(cite, fedreg.links.usgpo.mods, callback);
-    else
-      callback([])
-  },
-  reporter: function(reporter, cite, env, callback) {
-    get_from_courtlistener_search(cite, env, callback);
-  }
-};
+function run_usc_check(citation, callback) {
+  request.get({
+    uri: citation.usc.links.house.html,
+    followRedirect: false
+  }, function (error, response, body) {
+    // When the link fails, OLRC gives a status 302 with a redirect to
+    // a docnotfound page.
+    callback(response.statusCode == 200);
+  });
+}
+
+run_citation_methods = [
+  run_usgpo_mods,
+  run_govtrack_search,
+  run_legisworks_publaw,
+];
 
 function create_parallel_cite(type, citeobj) {
   var citator = Citation.types[type];
@@ -116,7 +189,23 @@ function create_parallel_cite(type, citeobj) {
   return ret;
 }
 
-function get_from_usgpo_mods(cite, mods_url, callback) {
+function run_usgpo_mods(citation, is_top_level, new_parallel_cites, env, callback) {
+  // If we have a link to US GPO's GovInfo.gov site, load the MODS XML
+  // metadata file for additional information.
+  var mods_url;
+  if (citation.stat && citation.stat.links.usgpo)
+    mods_url = citation.stat.links.usgpo.mods;
+  else if (citation.law && citation.law.links.usgpo)
+    mods_url = citation.law.links.usgpo.mods;
+  else if (citation.cfr && citation.cfr.links.usgpo)
+    mods_url = citation.cfr.links.usgpo.mods;
+  else if (citation.fedreg && citation.fedreg.links.usgpo)
+    mods_url = citation.fedreg.links.usgpo.mods;
+  else {
+    callback(); // no URL
+    return;
+  }
+  
   // Result Stat citation to equivalent Public Law citation.
   request.get(mods_url, function (error, response, body) {
       // turn body back into a readable stream
@@ -124,12 +213,11 @@ function get_from_usgpo_mods(cite, mods_url, callback) {
         if (err)
           console.log(err);
 
-        var cites = [ ];
         var seen_cites = { };
 
         if (result && result.mods && result.mods.extension) {
           result.mods.extension.forEach(function(extension) {
-            if (cite.type == "stat" || cite.type == "law") {
+            if (is_top_level && (citation.type == "stat" || citation.type == "law")) {
 
               // Statutes at Large MODS files have references to a parallel public law citations.
               if (extension.law) {
@@ -140,7 +228,7 @@ function get_from_usgpo_mods(cite, mods_url, callback) {
                   number: parseInt(elem.number)
                 });
                 if (c.law.id in seen_cites) return; // MODS has duplicative info
-                cites.push(c);
+                new_parallel_cites.push(c);
                 seen_cites[c.law.id] = c;
               }
 
@@ -155,7 +243,7 @@ function get_from_usgpo_mods(cite, mods_url, callback) {
                     number: parseInt(elem.number)
                   });
                   if (c.us_bill.id in seen_cites) return; // MODS has duplicative info
-                  cites.push(c);
+                  new_parallel_cites.push(c);
                   seen_cites[c.us_bill.id] = c;
                 }
               }
@@ -168,27 +256,34 @@ function get_from_usgpo_mods(cite, mods_url, callback) {
             if (extension.shortTitle) {
               var elem = extension.shortTitle[0];
               if (typeof elem == "string")
-                cite.title = elem;
+                citation.title = elem;
               else if (typeof elem._ == "string")
-                cite.title = elem._;
+                citation.title = elem._;
             } else if (extension.searchTitle) {
               var elem = extension.searchTitle[0];
-              cite.title = elem;
+              citation.title = elem;
             }
 
           });
         }
 
         // Callback.
-        callback(cites);
+        callback();
       });
     });
 }
 
-function get_from_govtrack_search(cite, govtrack_link, is_enacted, callback) {
+function run_govtrack_search(citation, is_top_level, new_parallel_cites, env, callback) {
+  var url;
+  if (is_top_level && citation.law && citation.law.links.govtrack && citation.law.links.govtrack.landing)
+    url = citation.law.links.govtrack.landing;
+  else {
+    callback();
+    return;
+  }
+
   // The GovTrack link is to a search page. Hit the URL to
   // see if it redirects to a bill.
-  var url = govtrack_link.landing;
   request.get(url, function (error, response, body) {
     var url = response.request.uri.href;
     var m = /^https:\/\/www.govtrack.us\/congress\/bills\/(\d+)\/([a-z]+)(\d+)$/.exec(url);
@@ -198,38 +293,34 @@ function get_from_govtrack_search(cite, govtrack_link, is_enacted, callback) {
       return;
     }
 
+    // Update URL.
+    citation.law.links.govtrack.landing = url;
+
     // The search page redirected to a bill. Use the hidden .json extension
     // to get the API response for this bill.
-    var cites = [];
     request.get(url + ".json", function (error, response, body) {
-      try {
-        var bill = JSON.parse(body);
+      var bill = JSON.parse(body);
 
-        // Add title information to the main citation object.
-        cite.title = bill.title_without_number;
+      // Add title information to the main citation object.
+      citation.title = bill.title_without_number;
 
-        // This citation is for a law, so add a new parallel citation
-        // record for the bill.
-        cites.push(create_parallel_cite('us_bill', {
-          is_enacted: is_enacted, // flag for our linker that it's known to be enacted
-          congress: parseInt(bill.congress),
-          bill_type: m[2], // easier to scrape from URL, code is not in the API response
-          number: parseInt(bill.number),
-          title: bill.title
-        }));
+      // This citation is for a law, so add a new parallel citation
+      // record for the bill.
+      if (is_top_level)
+      new_parallel_cites.push(create_parallel_cite('us_bill', {
+        is_enacted: true, // flag for our linker that it's known to be enacted
+        congress: parseInt(bill.congress),
+        bill_type: m[2], // easier to scrape from URL, code is not in the API response
+        number: parseInt(bill.number),
+        title: bill.title
+      }));
 
-        // Delete the original govtrack link now that we have a better link
-        // as a parallel citation.
-        delete cite.law.links.govtrack;
-      } catch (e) {
-        // ignore error
-      }
-      callback(cites)
+      callback()
     });
   });
 }
 
-function get_from_legisworks(cite, callback) {
+function run_citation_legisworks(cite, is_top_level, callback) {
   // Look up this citation in the Legisworks data.
   function pad(n, width, z) {
     // https://stackoverflow.com/questions/10073699/pad-a-number-with-leading-zeros-in-javascript
@@ -239,13 +330,21 @@ function get_from_legisworks(cite, callback) {
   }
 
   // Get the YAML file for the volume.
-  var body = fs.readFileSync("legisworks-historical-statutes/data/" + pad(cite.stat.volume, 3) + ".yaml")
-  body = yaml.safeLoad(body);
+  var body;
+  try {
+    body = fs.readFileSync("legisworks-historical-statutes/data/" + pad(cite.stat.volume, 3) + ".yaml")
+    body = yaml.safeLoad(body);
+  } catch (e) {
+    cite.stat.links.legisworks = { }; // mark as processed
+    callback([cite], []);
+    return;
+  }
 
   // Search for a matching entry. There may be more than one, so we
   // accumulate new entries if needed. We allow targetting the first
   // page as well as any internal page of an entry.
   var matches = [];
+  var parallel_citations = [];
   body.forEach(function(item) {
     if ((""+item.volume) != cite.stat.volume)
       return;
@@ -289,10 +388,10 @@ function get_from_legisworks(cite, callback) {
       pdf: "https://govtrackus.s3.amazonaws.com/legislink/pdf/stat/" + item.volume + "/" + item.file
     };
     if (!is_start_page)
-      c.stat.links.legisworks.source.note = "Link is to an internal page within a statute beginning on page " + item.page + ".";
+      c.note = "Link is to an internal page within a statute beginning on page " + item.page + ".";
 
     // If there is public law information, make a parallel citation.
-    if (item.congress >= 38 && item.type == "publaw") {
+    if (item.congress >= 38 && item.type == "publaw" && is_top_level) {
       var cc = create_parallel_cite('law', {
         congress: item.congress,
         type: "public",
@@ -300,6 +399,7 @@ function get_from_legisworks(cite, callback) {
       });
       cc.title = item.title || item.topic;
       c.parallel_citations = [cc];
+      parallel_citations.push(cc)
     }
 
     return c;
@@ -310,24 +410,31 @@ function get_from_legisworks(cite, callback) {
   matches.reverse();
 
   // Finish.
-  callback(matches);
+  callback(matches, parallel_citations);
 }
 
-function get_from_legisworks_publaw(cite, callback) {
+function run_legisworks_publaw(citation, is_top_level, new_parallel_cites, env, callback) {
+  // Get a link to a PDF from Legisworks.
+
+  // This only works after public law citations entered the modern form,
+  // and within the range of volumes that we have data for.
+  if (!citation.law || citation.law.congress < 60) {
+    callback();
+    return;
+  }
+
   // Which volume is this Congress in?
   var volume_map = {
     60: [35], 61: [36], 62: [37], 63: [38], 64: [39], 65: [40], 66: [41], 67: [42], 68: [43], 69: [44],
     70: [45], 71: [46], 72: [47], 73: [48], 74: [49], 75: [50], 75: [51, 52], 76: [53, 54], 77: [55, 56],
     78: [57, 58], 79: [59, 60], 80: [61, 62], 81: [63, 64]
   };
-  if (!volume_map[cite.law.congress]) {
-    callback([]);
+  if (!volume_map[citation.law.congress]) {
+    callback();
     return;
   }
 
-  var parallel_cites = [];
-
-  volume_map[cite.law.congress].forEach(function(volume) {
+  volume_map[citation.law.congress].forEach(function(volume) {
     function pad(n, width, z) {
       // https://stackoverflow.com/questions/10073699/pad-a-number-with-leading-zeros-in-javascript
       z = z || '0';
@@ -340,20 +447,20 @@ function get_from_legisworks_publaw(cite, callback) {
     body = yaml.safeLoad(body);
 
     body.forEach(function(item) {
-      if (""+item.congress != cite.law.congress)
+      if (""+item.congress != citation.law.congress)
         return;
-      if (""+item.number != cite.law.number)
+      if (""+item.number != citation.law.number)
         return;
-      if (cite.law.type == "public" && item.type != "publaw")
+      if (citation.law.type == "public" && item.type != "publaw")
         return;
-      if (cite.law.type == "private")
+      if (citation.law.type == "private")
         return;
 
       // Add metadata.
-      cite.title = item.title || item.topic;
+      citation.title = item.title || item.topic;
 
       // Add link information.
-      cite.law.links.legisworks = {
+      citation.law.links.legisworks = {
         source: {
             name: "Legisworks",
             abbreviation: "Legisworks",
@@ -365,136 +472,69 @@ function get_from_legisworks_publaw(cite, callback) {
 
       // Add Stat parallel citation. No need to create a link because
       // it would go to the very same resource.
-      parallel_cites.push(create_parallel_cite('stat', {
-        volume: item.volume,
-        page: item.page,
-      }));
+      if (is_top_level) {
+        new_parallel_cites.push(create_parallel_cite('stat', {
+          volume: item.volume,
+          page: item.page,
+        }));
+      }
     });
   });
 
-  callback(parallel_cites);
-  return;
-
-  // Look up this citation in the Legisworks data.
-
-  // Search for a matching entry. There may be more than one, so we
-  // accumulate new entries if needed. We allow targetting the first
-  // page as well as any internal page of an entry.
-  var matches = [];
-  body.forEach(function(item) {
-    if ((""+item.volume) != cite.stat.volume)
-      return;
-    if (!(
-      (""+item.page) == cite.stat.page
-      || (
-        item.npages
-        && parseInt(cite.stat.page) >= item.page
-        && parseInt(cite.stat.page) < (item.page + item.npages)
-      )))
-      return;
-    matches.push(item);
-  });
-
-  matches = matches.map(function(item) {
-    // Create a fresh citation entry for this match.
-    var c = create_parallel_cite('stat', {
-      volume: cite.stat.volume,
-      page: cite.stat.page,
-    });
-  
-    // Add the title metadata.
-    c.title = item.title || item.topic;
-
-    // Replace the citation with the start page of the entry.
-    c.citation = item.volume + " Stat. " + item.page;
-
-    // If there are multiple matches, disambiguate.
-    if (matches.length > 1)
-      c.citation += " (" + item.citation + ")";
-
-    // Add a link.
-    var is_start_page = (""+item.page) == cite.stat.page;
-    c.stat.links.legisworks = {
-      source: {
-          name: "Legisworks",
-          abbreviation: "Legisworks",
-          link: "https://github.com/unitedstates/legisworks-historical-statutes",
-          authoritative: false,
-      },
-      pdf: "https://govtrackus.s3.amazonaws.com/legislink/pdf/stat/" + item.volume + "/" + item.file
-    };
-    if (!is_start_page)
-      c.stat.links.legisworks.source.note = "Link is to an internal page within a statute beginning on page " + item.page + ".";
-
-    // If there is public law information, make a parallel citation.
-    if (item.congress >= 38 && item.type == "publaw") {
-      var cc = create_parallel_cite('law', {
-        congress: item.congress,
-        type: "public",
-        number: item.number
-      });
-      cc.title = item.title || item.topic;
-      c.parallel_citations = [cc];
-    }
-
-    return c;
-  });
-
-  // Go in reverse order. If there are multiple matches, prefer ones that
-  // start on this page rather than ones that end on this page.
-  matches.reverse();
-
-  // Finish.
-  callback(matches);
+  callback();
 }
 
-function get_from_courtlistener_search(cite, env, callback) {
-  var link = cite.reporter.links.courtlistener;
-  if (link && env.courtlistener) {
-    // This case is believed to be available at CourtListener. Do a search
-    // for the citation at CL and use the first result.
-    request.get('https://www.courtlistener.com/api/rest/v3/search/?' + url.parse(link.landing).query,
-      {
-        auth: {
-          user: env.courtlistener.username,
-          pass: env.courtlistener.password,
-          sendImmediately: true
-        }
-      }, function (error, response, body) {
-        try {
-          if (error || !body) throw "no response";
-          var cases = JSON.parse(body).results;
-          if (cases.length == 0) throw "no results";
+function run_courtlistener_search(citation, is_top_level, env, callback) {
+  // This case is believed to be available at CourtListener. Do a search
+  // for the citation at CL and use the first result.
+  var link = citation.reporter.links.courtlistener;
+  request.get('https://www.courtlistener.com/api/rest/v3/search/?' + url.parse(link.landing).query,
+    {
+      auth: {
+        user: env.courtlistener.username,
+        pass: env.courtlistener.password,
+        sendImmediately: true
+      }
+    }, function (error, response, body) {
+      if (error || !body) throw "no response";
+      var cases = JSON.parse(body).results;
+      if (cases.length == 0) throw "no results";
 
-          // If there is a single unique response, just update the citation in place.
-          if (cases.length == 1) {
-            cite.title = cases[0].caseName; // add this, not provided by citation library
-            cite.type_name = cases[0].court; // add this, not provided by citation library
-            cite.citation = cases[0].citation[0]; // replace this --- citation library does a bad job of providing a normalized/canonical citation
-            cite.reporter.links.courtlistener = { // replace with new link
-              source: {
-                  name: "Court Listener",
-                  abbreviation: "CL",
-                  link: "https://www.courtlistener.com",
-                  authoritative: false
-              },
-              landing: "https://www.courtlistener.com" + cases[0].absolute_url
-            };
+      // Return all of the matches as new citations.
+      var matches = cases.map((c) => {
+        var newcitation = create_parallel_cite('reporter', {
+          volume: citation.reporter.volume,
+          reporter: citation.reporter.reporter,
+          page: citation.reporter.page,
+        })
+        newcitation.title = c.caseName; // add this, not provided by citation library
+        newcitation.type_name = c.court; // add this, not provided by citation library
+        newcitation.reporter.links.courtlistener = { // replace with new link
+          source: {
+              name: "Court Listener",
+              abbreviation: "CL",
+              link: "https://www.courtlistener.com",
+              authoritative: false
+          },
+          html: "https://www.courtlistener.com" + c.absolute_url
+        };
+        c.citation = c.citation.filter((ci) => {
+          // don't show a parallel cite that exactly matches the original
+          ci != citation.citation
+        });
+        newcitation.parallel_citations = c.citation.map((ci) => {
+          var pc = create_parallel_cite('reporter', {
+            volume: citation.reporter.volume,
+            reporter: citation.reporter.reporter,
+            page: citation.reporter.page,
+          })
+          pc.citation = ci;
+          return pc;
+        });
+        return newcitation;
+      });
 
-            callback([]);
-            return;
-          }
-
-          // There are multiple matches for this citation. Preserve the original
-          // link to the CL search page.
-
-        } catch (e) {
-        }
-
-        callback([])
-      })
-  } else {
-    callback([])
-  }
+      callback(matches, []);
+  });
 }
 

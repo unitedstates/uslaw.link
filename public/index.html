@@ -104,7 +104,7 @@
 
             #results-container h3 {
               font-size: 100%;
-              margin: 1em 0 2em 0;
+              margin: 1.25em 0 1.25em 0;
             }
 
             #results-container h4 {
@@ -405,6 +405,11 @@
 
             if (cite.title) {
               var n = $('<div class="cite-title"/>').text(cite.title);
+              node.append(n);
+            }
+
+            if (cite.note) {
+              var n = $('<div class="alert alert-warning" role="alert"/>').text(cite.note);
               node.append(n);
             }
 
