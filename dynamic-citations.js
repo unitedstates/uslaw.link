@@ -275,7 +275,7 @@ function get_from_legisworks(cite, callback) {
 
     // If there are multiple matches, disambiguate.
     if (matches.length > 1)
-      c.citation += " (" + item.citation + ")";
+      c.disambiguation = item.citation;
 
     // Add a link.
     var is_start_page = (""+item.page) == cite.stat.page;

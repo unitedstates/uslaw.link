@@ -13,11 +13,11 @@
 
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <style>
-            @import url('https://fonts.googleapis.com/css?family=Red+Hat+Display&display=swap');
+            @import url('https://fonts.googleapis.com/css?family=Open+Sans+Condensed:300|Red+Hat+Display&display=swap');
 
             body {
                 overflow-y: scroll; /* since page height changes, always show scrollbar to avoid flicker */
-                font-family: 'Red Hat Display', sans-serif;
+                font-family: 'Red Hat Display';
                 font-size: 17px;
             }
 
@@ -103,23 +103,16 @@
             }
 
             #results-container h3 {
-              font-weight: bold;
               font-size: 100%;
-              margin: 0 0 .5em 0;
+              margin: 1em 0 2em 0;
             }
 
             #results-container h4 {
               font-size: 100%;
               margin: 0;
             }
-              #results-container h4 img {
-                width: 1.66em;
-                height: 1.66em;
-                margin-right: .4em;
-              }
 
             #results-container a {
-              font-weight: bold;
             }
 
             .citation {
@@ -127,17 +120,18 @@
             }
 
             .source {
-              margin-bottom: 1em;
+              margin-bottom: 2em;
             }
 
-            .links {
-              margin-left: 2.66em;
+            .url {
+              font-family: 'Open Sans Condensed';
             }
-              #results-container .links a {
-                  display: inline-block;
-                  margin-right: 1em;
-                  font-weight: normal;
-              }
+
+            #results-container .links a {
+                display: inline-block;
+                margin-right: 1em;
+                font-weight: normal;
+            }
 
             p.note {
                 font-style: italic;
@@ -176,15 +170,15 @@
     <div id="jumbotron">
       <div class="container">
         <form onsubmit="return run_from_form()">
-            <input id="citation" type="text" class="form-control" placeholder="enter a citation" title="Enter a citation." style="margin: 0 0 .5em 0;">
+            <input id="citation" type="text" class="form-control" placeholder="enter a citation to a united states legal source" title="Enter a citation." style="margin: 0 0 .5em 0;">
           <div>
-            <button class="btn btn-primary" onclick="run_from_form()">Get a Link &raquo;</button>
+            <button class="btn btn-primary" onclick="run_from_form()">Search &raquo;</button>
             <button id="examples-toggle" class="btn btn-secondary" onclick="$('#examples-toggle').toggleClass('active', !$('#examples').is(':visible')); $('#examples').toggle(); return false;">See Examples</button>
           </div>
         </form>
 
         <div id="examples" style="display: none">
-            <h2>Enter a citation above in any of the following formats. Click an example to see how it works.</h2>
+            <h2 style="margin: 2em 0 1.25em 0">Enter a citation in any of the following formats. Click an example to see how it works.</h2>
             <div class="row">
                 <div class="col-md-4 col-lg-3">
                     <h3>Federal Statutory Law</h3>
@@ -209,7 +203,7 @@
                 <div class="clearfix"> </div>
 
                 <div class="col-md-4 col-lg-3">
-                    <h3>Municipal Laws</h3>
+                    <h3>State/Local Laws</h3>
                     <p title="DC Code">DC Official Code 1-1161.01</p>
                     <p title="DC Law">DC Law 22-168</p>
                     <p title="VA Code">VA Code § 30-178</p>
@@ -315,10 +309,7 @@
         }
 
         function run_from_json(citations) {
-          $('#results-container').text('');
-          citations.forEach(function(item) {
-            $('#results-container').append(show_cite(item));
-          });
+          show_citations(citations);
           $('#citation').val(citations[0].citation || "");
         }
 
@@ -348,11 +339,7 @@
                     }
 
                     // load results
-                    node.text(''); // clear
-                    citations.forEach(function(item) {
-                      var n = show_cite(item);
-                      node.append(n);
-                    });
+                    show_citations(citations);
 
                     // scroll to them
                     smooth_scroll_to(node);
@@ -388,6 +375,19 @@
             });
         }
 
+        function show_citations(citations) {
+          var node = $('#results-container');
+          node.text(''); // clear
+          if (citations.length > 1) {
+            var p = $("<p style='margin-bottom: 30px; font-style: italic;'/>").text("The citation is ambiguous. It may mean:");
+            node.append(p);
+          }
+          citations.forEach(function(item) {
+            var n = show_cite(item);
+            node.append(n);
+          });
+        }
+
         var citators_with_icons = [ 'cornell_lii', 'courtlistener', 'govtrack', 'house', 'libraryofcongress', 'usgpo', 'nara' ];
 
         var standard_link_formats = [["html", "HTML"], ["pdf", "PDF"], ["text", "Text"], ["landing", "Details Page"]];
@@ -397,7 +397,10 @@
 
             // Display the canonical citation given to us in the heading, or
             // if none is provided then just the matched string.
-            var n = $('<h2/>').text(cite.citation || cite.match);
+            var n = $('<h2/>').text(
+              (cite.citation || cite.match)
+              + (cite.disambiguation ? " (" + cite.disambiguation + ")" : "")
+              );
             node.append(n);
 
             if (cite.title) {
@@ -405,16 +408,9 @@
               node.append(n);
             }
 
-            if (!(cite.parallel_citations && cite.parallel_citations.length > 0)) {
-              // If there are no parallel citations, just show the citation type.
-              var authority = $("<h3 style='margin: 1em 0'>You can view this <span/> citation at these source(s):</h3>");
-              authority.find("span").text(cite.type_name || cite.type);
-              node.append(authority);
-            } else {
-              var authority = $("<h3 style='margin: 15px 0'>This is a <span/> citation. We also found parallel citations. You can view the item at these sources:</h3>");
-              authority.find("span").text(cite.type_name || cite.type);
-              node.append(authority);
-            }
+            var authority = $("<h3>You can view this <span/> citation at these source(s):</h3>");
+            authority.find("span").text(cite.type_name || cite.type);
+            node.append(authority);
 
             show_links(cite, node);
             return node;
@@ -428,7 +424,7 @@
               // a parallel citation, then we'll show each grouped by authority.
               var n = $("<div class='linkgroup row'/>");
               node.append(n);
-              var authority = $("<div class='col-sm-3'><h3/><p/></div>");
+              var authority = $("<div class='col-sm-3'><h3 style='margin: 0; font-weight: bold;'/><p/></div>");
               n.append(authority);
               authority.find('h3')
                   .text(cite.citation || cite.match);
@@ -438,56 +434,81 @@
               n.append(links);
             }
 
-            // Show links.
-            var has_links = false;
+            // Show links. Collect the link sources available.
+            var link_sources = [];
             for (var key in cite) {
                 // the key might be 'usc' or another citator name, or some other metadata
                 if (cite[key] && cite[key].links) {
                     // this is a citator with links
-                    for (var link in cite[key].links) {
-                        has_links = true;
-                        show_links_from_source(links, cite[key], link);
+                    for (var source in cite[key].links) {
+                        if (!cite[key].links[source].source) continue;
+                        link_sources.push(source);
                     }
                 }
             }
 
+            // Sort the link sources --- show authoritative sources first.
+            link_sources.sort(function(a, b) {
+              a = cite[cite.type].links[a];
+              b = cite[cite.type].links[b];
+              var cmp = [
+                b.source.authoritative - a.source.authoritative,
+                !!b.html - !!a.html,
+                !!b.pdf - !!a.pdf,
+                ];
+              while (cmp.length) {
+                var p = cmp.shift();
+                if (p != 0)
+                  return p;
+              }
+              return 0;
+            });
+
+            // Show the links.
+            link_sources.forEach(function(link_source) {
+              show_links_from_source(links, link_source, cite[cite.type].links[link_source]);
+            })
+
             // Recursively show parallel citations.
             for (var i = 0; i < (cite.parallel_citations || []).length; i++) {
-                var n = show_links(cite.parallel_citations[i], node, true);
-                has_links = true;
+                if (i == 0) {
+                  var authority = $("<h3 style='margin: 15px 0'>We also found <span class='count'/> parallel citation<span class='plural'/>:</h3>");
+                  authority.find(".count").text(cite.parallel_citations.length);
+                  authority.find(".plural").text(cite.parallel_citations.length != 1 ? "s" : "");
+                  node.append(authority);
+                }
+
+                show_links(cite.parallel_citations[i], node, true);
             }
-
-            if (!has_links)
-                return null;
-
-            return node;
         }
 
-        function show_links_from_source(node, cite, link_type) {
-          var link = $("<div class='source'>"
-              +"<h4><a><img/> <span class='source-name'></span> <span class='link-type' style='font-weight: normal;'></span></a></h4>"
+        function show_links_from_source(node, link_source, link_data) {
+          var link = $("<div class='source' style='position: relative; padding-left: 55px;'>"
+              +"<h4><a><img style='position: absolute; top: 0; left: 0; width: 45px; height: 45px;'/> <span class='source-name'></span></a></h4>"
+              +"<div class='url'></div>"
               +"<div class='note'></div>"
-              +"<div class='links' style='display: none; font-size: 90%;'>other formats: </div>"
+              +"<div class='links' style='display: none; font-size: 90%; margin-top: .25em;'>also: </div>"
               +"</div>");
           node.append(link);
 
-          if (citators_with_icons.indexOf(link_type) >= 0)
-              link.find("img").attr('src', '/source-icons/' + link_type + '.png');
+          if (citators_with_icons.indexOf(link_source) >= 0)
+              link.find("img").attr('src', '/source-icons/' + link_source + '.png');
           else
               link.find("img").remove();
 
-          var source = cite.links[link_type].source;
+          var source = link_data.source;
           link.find(".source-name").text(source.name);
           link.find(".note").text(source.note);
 
           var first = true;
           standard_link_formats.forEach(function(f) {
-            var url = cite.links[link_type][f[0]];
+            var url = link_data[f[0]];
             if (url) {
               if (first) {
                 link.find("a").attr('href', url);
                 if (f[0] != "landing")
-                  link.find('.link-type').text("(" + f[1] + ")");
+                  url = f[1] + " - " + url;
+                link.find(".url").text(url);
                 first = false;
               } else {
                 var ff = $("<a/>")
