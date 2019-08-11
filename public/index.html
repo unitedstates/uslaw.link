@@ -83,6 +83,10 @@
                   }
                 }
 
+            #results-container {
+              padding: 1em 0;
+            }
+
             #results-container h2 {
               font-weight: bold;
               font-size: 150%;
@@ -116,6 +120,10 @@
 
             #results-container a {
               font-weight: bold;
+            }
+
+            .citation {
+              margin-bottom: 30px;
             }
 
             .source {
@@ -260,9 +268,9 @@
           // Directly show results if this page comes on a /citation/* path,
           // or from a query in the URL fragment. If there's nothing to show,
           // set the focus in the query input box.
-          var direct_citation = null;
-          if (direct_citation) {
-            run_from_json(direct_citation);
+          var direct_citations = null;
+          if (direct_citations) {
+            run_from_json(direct_citations);
             return;
           }
 
@@ -299,15 +307,17 @@
           // If the URL looks like an ID, use it. Otherwise, use the hash.
           console.log("loading", event.originalEvent.state);
           if (event.originalEvent.state)
-            run_from_json(event.originalEvent.state)
+            run_from_json([event.originalEvent.state])
           else
             run_from_hash(true);
         }
 
-        function run_from_json(cite) {
+        function run_from_json(citations) {
           $('#results-container').text('');
-          $('#results-container').append(show_cite(cite));
-          $('#citation').val(cite.citation || "");
+          citations.forEach(function(item) {
+            $('#results-container').append(show_cite(item));
+          });
+          $('#citation').val(citations[0].citation || "");
         }
 
         function run(q, is_in_popstate) {
@@ -337,10 +347,10 @@
 
                     // load results
                     node.text(''); // clear
-                    for (var i = 0; i < citations.length; i++) {
-                        var n = show_cite(citations[i]);
-                        node.append(n);
-                    }
+                    citations.forEach(function(item) {
+                      var n = show_cite(item);
+                      node.append(n);
+                    });
 
                     // scroll to them
                     smooth_scroll_to(node);
@@ -380,7 +390,7 @@
 
         var standard_link_formats = [["html", "HTML"], ["pdf", "PDF"], ["text", "Text"], ["landing", "Details Page"]];
 
-        function show_cite(cite) {
+          function show_cite(cite) {
             var node = $("<div class='citation'></div>");
 
             // Display the canonical citation given to us in the heading, or
@@ -393,28 +403,27 @@
               node.append(n);
             }
 
+            if (!(cite.parallel_citations && cite.parallel_citations.length > 0)) {
+              // If there are no parallel citations, just show the citation type.
+              var authority = $("<h3 style='margin: 1em 0'>You can view this <span/> citation at these source(s):</h3>");
+              authority.find("span").text(cite.type_name || cite.type);
+              node.append(authority);
+            } else {
+              var authority = $("<h3 style='margin: 15px 0'>This is a <span/> citation. We also found parallel citations. You can view the item at these sources:</h3>");
+              authority.find("span").text(cite.type_name || cite.type);
+              node.append(authority);
+            }
+
             show_links(cite, node);
             return node;
           }
 
           function show_links(cite, node, is_parallel_citation) {
-            var links;
+            var links = node;
 
-            if (!is_parallel_citation && !(cite.parallel_citations && cite.parallel_citations.length > 0)) {
-              // If there are no parallel citations, just show the citation type.
-              var authority = $("<h3 style='margin: 1em 0'>You can view this <span/> citation at these source(s):</h3>");
-              authority.find("span").text(cite.type_name || cite.type);
-              node.append(authority);
-              links = node;
-            } else {
-              if (!is_parallel_citation) {
-                var authority = $("<h3 style='margin: 15px 0'>This is a <span/> citation. We also found parallel citations. You can view the item at these sources:</h3>");
-                authority.find("span").text(cite.type_name || cite.type);
-                node.append(authority);
-              }
-
-              // If there are parallel citations for this citation, then we'll show
-              // each grouped by authority.
+            if ((cite.parallel_citations && cite.parallel_citations.length > 0) || is_parallel_citation) {
+              // If there are parallel citations for this citation, or this is
+              // a parallel citation, then we'll show each grouped by authority.
               var n = $("<div class='linkgroup row'/>");
               node.append(n);
               var authority = $("<div class='col-sm-3'><h3/><p/></div>");

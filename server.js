@@ -5,7 +5,8 @@ const async = require('async');
 const buffer_replace = require('buffer-replace');
 
 const Citation = require('./citation');
-const ParallelCitations = require("./parallel-citations.js");
+const DynamicCitations = require("./dynamic-citations.js");
+require("./more-links.js");
 
 // our environment
 var env;
@@ -25,15 +26,33 @@ try {
 
 var index_html = fs.readFileSync(__dirname + '/public/index.html');
 
-var add_additional_citation_information = function(citation, callback) {
-  // Mark each citation as being permalinkable or not.
-  citation.can_permalink = typeof Citation.types[citation.type].fromId == "function";
+var add_additional_citation_information = function(citations, callback) {
+  // Citations may be ambiguous --- use dynamic data to explode citations.
+  async.map(citations, function (citation, callback) {
+    DynamicCitations.explode(citation, env, callback);
+  }, function (err, results) {
+    // Flatten results.
+    var citations = [];
+    results.forEach(function(original_cite_results) {
+      original_cite_results.forEach(function(cite) {
+        citations.push(cite);
+      });
+    })
+    
+    // For each result, add dynamic links and parallel citations.
+    async.each(citations, function (citation, callback) {
+      // Mark each citation as being permalinkable or not.
+      citation.can_permalink = typeof Citation.types[citation.type].fromId == "function";
 
-  // Get the parallel citations for a citation.
-  ParallelCitations.get(citation, env, function(new_citations) {
-    citation.parallel_citations = (new_citations || []);
-    callback();
-  })
+      // Get the parallel citations for a citation.
+      DynamicCitations.add_parallel_citations(citation, env, function(new_citations) {
+        citation.parallel_citations = (citation.parallel_citations || []).concat(new_citations || []);
+        callback();
+      })
+    }, function (err) {
+      callback(citations);
+    });
+  });
 }
 
 var ajax_route = function(req, res) {
@@ -46,13 +65,11 @@ var ajax_route = function(req, res) {
   // Fetch parallel citations for each matched citation (the input may
   // yield multiple distinct matched citations, as an array). Adorn each
   // citation with a list of parallel citations.
-  async.each(results, function (citation, callback) {
-    add_additional_citation_information(citation, callback);
-  }, function (err) {
+  add_additional_citation_information(results, function (results) {
     // Send response.
     res.set({'Content-Type': 'application/json'});
     res.send(JSON.stringify(results));
-  })  
+  });
 };
 
 var direct_route = function(req, res) {
@@ -88,7 +105,7 @@ var direct_route = function(req, res) {
   cite[type].links = Citation.getLinksForCitation(type, cite[type]);
 
   // Get the parallel citations.
-  add_additional_citation_information(cite, function() {
+  add_additional_citation_information([cite], function(results) {
     // Construct page.
     var page = index_html;
     page = buffer_replace(
@@ -97,8 +114,8 @@ var direct_route = function(req, res) {
       "id=\"jumbotron\" class=\"small\"")
     page = buffer_replace(
       page,
-      "var direct_citation = null;",
-      "var direct_citation = " + JSON.stringify(cite) + ";")
+      "var direct_citations = null;",
+      "var direct_citations = " + JSON.stringify(results) + ";")
 
     res.set({'Content-Type': 'text/html'});
     res.send(page);
