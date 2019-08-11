@@ -307,7 +307,7 @@ function run_usgpo_related_docs(citation, is_top_level, new_parallel_cites, env,
 
 function run_govtrack_search(citation, is_top_level, new_parallel_cites, env, callback) {
   var url;
-  if (is_top_level && citation.law && citation.law.links.govtrack && citation.law.links.govtrack.landing)
+  if (citation.law && citation.law.links.govtrack && citation.law.links.govtrack.landing)
     url = citation.law.links.govtrack.landing;
   else {
     callback();
@@ -326,7 +326,9 @@ function run_govtrack_search(citation, is_top_level, new_parallel_cites, env, ca
     }
 
     // Update URL.
+    bill_type = m[2];
     citation.law.links.govtrack.landing = url;
+    citation.law.links.govtrack.html = url + "/text";
 
     // The search page redirected to a bill. Use the hidden .json extension
     // to get the API response for this bill.
@@ -338,14 +340,26 @@ function run_govtrack_search(citation, is_top_level, new_parallel_cites, env, ca
 
       // This citation is for a law, so add a new parallel citation
       // record for the bill.
-      if (is_top_level)
-      new_parallel_cites.push(create_parallel_cite('us_bill', {
-        is_enacted: true, // flag for our linker that it's known to be enacted
-        congress: parseInt(bill.congress),
-        bill_type: m[2], // easier to scrape from URL, code is not in the API response
-        number: parseInt(bill.number),
-        title: bill.title
-      }));
+      if (is_top_level) {
+        new_parallel_cites.push(create_parallel_cite('us_bill', {
+          is_enacted: true, // flag for our linker that it's known to be enacted
+          congress: parseInt(bill.congress),
+          bill_type: bill_type, // easier to scrape from URL, code is not in the API response
+          number: parseInt(bill.number),
+          title: bill.title
+        }));
+
+        // When we link to GPO for bill text, we can extract a Stat citation.
+        if (bill.text_info && bill.text_info.gpo_pdf_url) {
+          var m = /STATUTE-(\d+)-Pg(\d+).pdf/.exec(bill.text_info.gpo_pdf_url);
+          if (m) {
+            new_parallel_cites.push(create_parallel_cite('stat', {
+              volume: parseInt(m[1]),
+              page: parseInt(m[2]),
+            }));
+          }
+        }
+      }
 
       callback()
     });
