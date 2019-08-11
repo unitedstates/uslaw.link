@@ -20,7 +20,7 @@ Citation.types.us_bill = {
 Citation.links.gpo.citations.us_bill = function(cite) {
   if (cite.congress < 103) return null;
   return {
-    pdf: "http://api.fdsys.gov/link?collection=bills&congress=" + cite.congress + "&billtype=" + cite.bill_type + "&billnum=" + cite.number
+    pdf: "https://www.govinfo.gov/link/bills/" + cite.congress + "/" + cite.bill_type + "/" + cite.number
   };
 }
 
