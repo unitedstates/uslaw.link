@@ -15,3 +15,5 @@ docker-run: docker-build
 docker-stop:
 	sudo docker stop uslawdotlink # because it is run with --rm, it rm's too
 
+docker-push:
+	sudo docker image push joshdata/uslawdotlink
