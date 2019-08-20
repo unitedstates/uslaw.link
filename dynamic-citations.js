@@ -71,13 +71,14 @@ function run_citations(citations, finished, env, callback) {
 
 function run_citation(citation, is_top_level, env, callback) {
   // Use the Legisworks Statutes at Large data to explode ambiguous
-  // SAL citations into multiple entries. The page referred to in
+  // SAL and PubL citations into multiple entries. The page referred to in
   // a X Stat Y citation can have multiple entries, each with a different
-  // set of links, so we split them up.
+  // set of links, so we split them up. Likewise, PubL 1-1 citations are
+  // ambiguous for Congress where the numbering restarted every session.
   //
   // Run this function only if we haven't already done so on this citation,
   // by looking at whether we added link metadata.
-  if (citation.stat && !citation.stat.links.legisworks) {
+  if ((citation.stat && !citation.stat.links.legisworks) || (citation.law && !citation.law.links.legisworks)) {
    run_citation_legisworks(citation, is_top_level, function(new_matches, parallel_citations) {
      if (is_top_level)
       new_matches.forEach((c) => { c.parallel_citations = c.parallel_citations || []; });
@@ -173,7 +174,6 @@ run_citation_methods = [
   run_usgpo_mods,
   run_usgpo_related_docs,
   run_govtrack_search,
-  run_legisworks_publaw,
 ];
 
 function create_parallel_cite(type, citeobj) {
@@ -277,15 +277,16 @@ function run_usgpo_mods(citation, is_top_level, new_parallel_cites, env, callbac
 function run_usgpo_related_docs(citation, is_top_level, new_parallel_cites, env, callback) {
   // Use a hidden API on GovInfo.gov to get the Statutes at Large
   // citation using a Public Law citation.
-  if (!is_top_level || !citation.law || citation.law.type != "public") {
+  if (!is_top_level || !citation.law || citation.law.type != "public" || citation.law.congress < 82) {
     callback(); // no URL
     return;
   }
 
   // Hit the URL.
   var url = "https://www.govinfo.gov/wssearch/publink/PLAW/PLAW-" + citation.law.congress + "publ" + citation.law.number + "/STATUTE";
+  console.log(url);
   request.get(url, function (error, response, body) {
-    var data = JSON.parse(body);
+    var data = JSON.parse(body) || [];
     data.forEach((collection) => {
       if (collection.collectioncode != "STATUTE")
         return;
@@ -367,7 +368,36 @@ function run_govtrack_search(citation, is_top_level, new_parallel_cites, env, ca
 }
 
 function run_citation_legisworks(cite, is_top_level, callback) {
-  // Look up this citation in the Legisworks data.
+  // Look up this Statutes at Large of Public/Private Law citation in the Legisworks data.
+
+  var volumes;
+  if (cite.stat) {
+  	volumes = [cite.stat.volume];
+    cite.stat.links.legisworks = { }; // mark as processed in case we return it
+  } else if (cite.law) {
+	  cite.law.links.legisworks = { }; // mark as processed in case we return it
+
+    // Which volume is this Congress in?
+    var volume_map = {
+      // "Chapter" was used instead of "public law".
+      1: [1, 6], 2: [1, 6], 3: [1, 6], 4: [1, 6], 5: [1, 6], 6: [2, 6], 7: [2, 6], 8: [2, 6], 9: [2, 6],
+      10: [2, 6], 11: [2, 6], 12: [2, 6], 13: [3, 6], 14: [3, 6], 15: [3, 6], 16: [3, 6], 17: [3, 6], 18: [4, 6], 19: [4, 6],
+      20: [4, 6], 21: [4, 6], 22: [4, 6], 23: [4, 6], 24: [5, 6], 25: [5, 6], 26: [5, 6], 27: [5, 6], 28: [5, 6], 29: [9],
+      30: [9], 31: [9], 32: [10], 33: [10], 34: [11], 35: [11], 36: [12], 37: [12], 38: [13], 39: [14],
+      40: [15], 41: [16], 42: [17], 43: [18], 44: [19], 45: [20], 46: [21], 47: [22], 48: [23], 49: [24],
+      50: [25], 51: [26], 52: [27], 53: [28], 54: [29], 55: [30], 56: [31],
+
+      // PubL citations are ambiguous because numbering restarted in each session.
+      57: [32], 58: [33], 59: [34], 
+
+      // PubL Congress-Number citations are unique.
+      60: [35], 61: [36], 62: [37], 63: [38], 64: [39], 65: [40], 66: [41], 67: [42], 68: [43], 69: [44],
+      70: [45], 71: [46], 72: [47], 73: [48], 74: [49], 75: [50], 75: [51, 52], 76: [53, 54], 77: [55, 56],
+      78: [57, 58], 79: [59, 60], 80: [61, 62], 81: [63, 64]
+    };
+    volumes = volume_map[parseInt(cite.law.congress)] || [];
+  }
+
   function pad(n, width, z) {
     // https://stackoverflow.com/questions/10073699/pad-a-number-with-leading-zeros-in-javascript
     z = z || '0';
@@ -375,56 +405,103 @@ function run_citation_legisworks(cite, is_top_level, callback) {
     return n.length >= width ? n : new Array(width - n.length + 1).join(z) + n;
   }
 
-  // Get the YAML file for the volume.
-  var body;
-  try {
-    body = fs.readFileSync("legisworks-historical-statutes/data/" + pad(cite.stat.volume, 3) + ".yaml")
-    body = yaml.safeLoad(body);
-  } catch (e) {
-    cite.stat.links.legisworks = { }; // mark as processed
-    callback([cite], []);
-    return;
-  }
-
   // Search for a matching entry. There may be more than one, so we
   // accumulate new entries if needed. We allow targetting the first
   // page as well as any internal page of an entry.
   var matches = [];
   var parallel_citations = [];
-  body.forEach(function(item) {
-    if ((""+item.volume) != cite.stat.volume)
+  volumes.forEach((volume) => {
+    // Get the YAML file for the volume.
+    var body;
+    try {
+      body = fs.readFileSync("legisworks-historical-statutes/data/" + pad(volume, 3) + ".yaml")
+      body = yaml.safeLoad(body);
+    } catch (e) {
       return;
-    if (!(
-      (""+item.page) == cite.stat.page
-      || (
-        item.npages
-        && parseInt(cite.stat.page) >= item.page
-        && parseInt(cite.stat.page) < (item.page + item.npages)
-      )))
-      return;
-    matches.push(item);
+    }
+
+    // Search it.
+    body.forEach((item) => {
+      if (
+        cite.stat
+        &&
+        (""+item.volume) == cite.stat.volume
+        &&
+        (
+          (""+item.page) == cite.stat.page
+          || (
+            item.npages
+            && item.page <= parseInt(cite.stat.page)
+            && (item.page + item.npages) > parseInt(cite.stat.page)
+          )
+        ))
+        matches.push(item);
+
+      if (
+        cite.law
+        &&
+        cite.law.type == "public"
+        &&
+        (item.type == "publaw" || item.type == "chap")
+        &&
+        (""+item.congress) == cite.law.congress
+        &&
+        (""+item.number) == cite.law.number
+        )
+        matches.push(item);
+    });
   });
 
   matches = matches.map(function(item) {
-    // Create a fresh citation entry for this match.
-    var c = create_parallel_cite('stat', {
-      volume: cite.stat.volume,
-      page: cite.stat.page,
-    });
+    // Create a fresh citation entry for this match, matching the citation type
+    // in the input.
+    var c;
+
+    if (cite.stat) {
+      c = create_parallel_cite('stat', {
+        volume: cite.stat.volume,
+        page: cite.stat.page
+      });
+
+      // Replace the citation with the start page of the entry, making a canonical citation.
+      c.citation = item.volume + " Stat. " + item.page;
+
+      // If there are multiple matches, disambiguate with the PubLaw citation.
+      if (matches.length > 1)
+        c.disambiguation = item.citation;
+
+      var is_start_page = (""+item.page) == cite.stat.page;
+      if (!is_start_page)
+        c.note = "Link is to an internal page within a statute beginning on page " + item.page + ".";
+
+    } else {
+      c = create_parallel_cite('law', {
+        congress: cite.law.congress,
+        number: cite.law.number,
+        type: cite.law.type
+      });
+
+      // Replace citation with canonical citation.
+      // TODO: The citations in the underlying data are not complete citations,
+      // and we can't parse them yet anyway (we don't want to give a canonical
+      // citation that can't be pasted back into the tool).
+      //c.citation = item.citation;
+
+      // If there are multiple matches, disambiguate with the Stat citation,
+      // although that can be ambiguous too, but unlikely for citations that
+      // are ambigious with a PubL number.
+      if (matches.length > 1) {
+        c.disambiguation = item.volume + " Stat. " + item.page;
+        if (item.session)
+          c.disambiguation = "Session " + item.session + "; " + c.disambiguation;
+      }
+    }
   
     // Add the title metadata.
     c.title = item.title || item.topic;
 
-    // Replace the citation with the start page of the entry.
-    c.citation = item.volume + " Stat. " + item.page;
-
-    // If there are multiple matches, disambiguate.
-    if (matches.length > 1)
-      c.disambiguation = item.citation;
-
     // Add a link.
-    var is_start_page = (""+item.page) == cite.stat.page;
-    c.stat.links.legisworks = {
+    (c.stat || c.law).links.legisworks = {
       source: {
           name: "Legisworks",
           abbreviation: "Legisworks",
@@ -433,11 +510,12 @@ function run_citation_legisworks(cite, is_top_level, callback) {
       },
       pdf: "https://govtrackus.s3.amazonaws.com/legislink/pdf/stat/" + item.volume + "/" + item.file
     };
-    if (!is_start_page)
-      c.note = "Link is to an internal page within a statute beginning on page " + item.page + ".";
 
     // If there is public law information, make a parallel citation.
-    if (item.congress >= 38 && item.type == "publaw" && is_top_level) {
+    // The citation may be ambiguous though because numbering restarted
+    // with each session before the 60th Congress. Don't add links because
+    // it would be the same target as the main citation anyway.
+    if (cite.stat && (item.type == "publaw" || item.type == "chap") && is_top_level) {
       var cc = create_parallel_cite('law', {
         congress: item.congress,
         type: "public",
@@ -447,13 +525,30 @@ function run_citation_legisworks(cite, is_top_level, callback) {
       c.parallel_citations = [cc];
       parallel_citations.push(cc)
     }
+    if (cite.law && is_top_level) {
+      var cc = create_parallel_cite('stat', {
+        volume: item.volume,
+        page: item.page
+      });
+      cc.title = item.title || item.topic;
+      c.parallel_citations = [cc];
+      parallel_citations.push(cc)
+    }
 
     return c;
   });
 
-  // Go in reverse order. If there are multiple matches, prefer ones that
-  // start on this page rather than ones that end on this page.
-  matches.reverse();
+  if (matches.length == 0) {
+    // No match, so return the original.
+    callback([cite], []);
+    return;
+  }
+
+  if (cite.stat) {
+    // Go in reverse order. If there are multiple matches, prefer ones that
+    // start on this page rather than ones that end on this page.
+    matches.reverse();
+  }
 
   // Finish.
   callback(matches, parallel_citations);
