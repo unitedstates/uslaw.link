@@ -23,7 +23,7 @@
     "async": "*",
     "buffer-replace": "^1.0.0",
     "errorhandler": "^1.5.1",
-    "express": "^4.17.1",
+    "express": "^4.17.3",
     "forever": "^1.0.0",
     "js-yaml": "^3.13.1",
     "request": "^2.88.0",
